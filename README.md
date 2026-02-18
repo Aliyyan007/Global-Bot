@@ -68,7 +68,7 @@ Most importantly — all these systems **interact seamlessly** with each other!
 
 ---
 
-🚀 **Ready to transform your server into something greater? [Invite Global Bot](https://wetbot.space) and start creating!**
+🚀 **Ready to transform your server into something greater? [Invite Global Bot](https://discord.com/oauth2/authorize?client_id=1439541104662937721) and start creating!**
 
 *Setup, magic, economy — all in your hands.* ✨
 
