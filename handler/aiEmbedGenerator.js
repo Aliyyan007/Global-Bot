@@ -1936,48 +1936,15 @@ JSON FORMATTING RULES:
             }
         }
 
-        // ═══════════════════════════════════════════════════════════════════
-        // STEP 10: Final validation — Discord rejects embeds without a
-        // non-empty description (embeds[0].description BASE_TYPE_REQUIRED) and
-        // malformed fields/titles. Guarantee a sendable embed regardless of
-        // what the model returned.
-        // ═══════════════════════════════════════════════════════════════════
+        // Discord requires description (or title+fields) on every embed —
+        // guarantee a non-empty description so the send can't hit
+        // BASE_TYPE_REQUIRED regardless of what the model returned.
         if (typeof embedObj.description !== 'string' || !embedObj.description.trim()) {
-            console.warn('[AI Embed] ⚠️ Empty description after processing — injecting fallback');
-            embedObj.description = `## ${description.substring(0, 150)}\n\n*Details coming soon — stay tuned!*`;
+            embedObj.description = embedObj.title
+                ? `**${embedObj.title}**`
+                : (typeof description === 'string' && description.trim() ? description.trim() : '\u200b');
+            console.warn('[AI Embed] ⚠️ Model returned no description — injected fallback');
         }
-        if (typeof embedObj.title === 'string' && embedObj.title.length > 256) {
-            embedObj.title = embedObj.title.substring(0, 256);
-        }
-        if (embedObj.footer && typeof embedObj.footer.text === 'string' && embedObj.footer.text.length > 2048) {
-            embedObj.footer.text = embedObj.footer.text.substring(0, 2048);
-        }
-        if (Array.isArray(embedObj.fields)) {
-            embedObj.fields = embedObj.fields
-                .filter(f => f && typeof f.name === 'string' && f.name.trim() && typeof f.value === 'string' && f.value.trim())
-                .slice(0, 25)
-                .map(f => ({ name: f.name.substring(0, 256), value: f.value.substring(0, 1024), inline: !!f.inline }));
-        }
-        if (embedObj.description.length > 4096) {
-            embedObj.description = embedObj.description.substring(0, 4096);
-        }
-        // Normalize color — AI sometimes returns a string like "blue" or "#ff0000"
-        if (typeof embedObj.color === 'string') {
-            const hexMatch = embedObj.color.match(/^#?([0-9a-fA-F]{6})$/);
-            embedObj.color = hexMatch ? parseInt(hexMatch[1], 16) : selectedTemplate.color;
-        }
-        if (typeof embedObj.color !== 'number' || isNaN(embedObj.color)) {
-            embedObj.color = selectedTemplate.color;
-        }
-        // Normalize media/URL shapes — strings or non-http URLs get dropped
-        if (typeof embedObj.thumbnail === 'string') embedObj.thumbnail = { url: embedObj.thumbnail };
-        if (typeof embedObj.image === 'string') embedObj.image = { url: embedObj.image };
-        if (embedObj.thumbnail && !/^https?:\/\//.test(embedObj.thumbnail?.url || '')) delete embedObj.thumbnail;
-        if (embedObj.image && !/^https?:\/\//.test(embedObj.image?.url || '')) delete embedObj.image;
-        if (embedObj.url && !/^https?:\/\//.test(embedObj.url)) delete embedObj.url;
-        if (embedObj.author?.url && !/^https?:\/\//.test(embedObj.author.url)) delete embedObj.author.url;
-        if (embedObj.author?.icon_url && !/^https?:\/\//.test(embedObj.author.icon_url)) delete embedObj.author.icon_url;
-        if (embedObj.footer?.icon_url && !/^https?:\/\//.test(embedObj.footer.icon_url)) delete embedObj.footer.icon_url;
 
         console.log(`[AI Embed] ✅ Final embed: template="${selectedTemplate.name}", length=${embedObj.description?.length || 0}, color=${embedObj.color}`);
         return { embed: embedObj, error: null };

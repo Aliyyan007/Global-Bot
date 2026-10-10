@@ -1,4 +1,4 @@
-const { ChannelType, ButtonStyle, InteractionType, AttachmentBuilder, TextInputBuilder, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, ModalBuilder, TextInputStyle, StringSelectMenuInteraction, Client, PermissionFlagsBits, Collection, ChannelSelectMenuBuilder, LabelBuilder } = require("discord.js")
+const { ChannelType, ButtonStyle, InteractionType, AttachmentBuilder, TextInputBuilder, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, ModalBuilder, TextInputStyle, StringSelectMenuInteraction, Client, PermissionFlagsBits, Collection, ChannelSelectMenuBuilder, LabelBuilder, MessageFlags } = require("discord.js")
 const FieldRegexp = /field{(.*?)}/
 const EmbedRegexp = /embed{(.*?)}/
 const UserRegexp = /usr{(.*?)}/
@@ -209,6 +209,26 @@ async function resolveMessageLink(client, currentGuild, link) {
     }
 
     return { guild, channel, messageId }
+}
+
+/**
+ * Explain why a fetched message has no copyable embeds — distinguishes
+ * Components-V2 cards, suppressed embeds, attachments-only, and text-only.
+ */
+function noEmbedsReason(message) {
+    if (message.flags?.has(MessageFlags.IsComponentsV2)) {
+        return "that message uses the new Components V2 card layout, not classic embeds — those can't be copied into the embed generator"
+    }
+    if (message.flags?.has(MessageFlags.SuppressEmbeds)) {
+        return "that message's embeds are suppressed"
+    }
+    if (message.attachments?.size) {
+        return "that message only has file attachments, no embeds"
+    }
+    if (message.content) {
+        return "that message has text but no embeds"
+    }
+    return "that message has no embeds to copy"
 }
 
 module.exports = {
@@ -456,9 +476,16 @@ module.exports = {
                 embeds = message.embeds.map(embed => EmbedBuilder.from(embed))
                 content = message.content
                 
+                // Forwarded messages carry their embeds inside message_snapshots
+                if (!embeds.length && message.messageSnapshots?.size) {
+                    const snap = message.messageSnapshots.first().message
+                    embeds = (snap.embeds || []).map(embed => EmbedBuilder.from(embed))
+                    if (!content) content = snap.content
+                }
+                
                 // A message with no embeds would leave embeds[] empty and the
                 // generator UI assumes embeds[0] always exists — bail early.
-                if (!embeds.length) return interaction.reply({ content: `${client.config.emojis.NO} ${client.language({ textId: "That message has no embeds to copy", guildId: interaction.guildId, locale: interaction.locale }) || "That message has no embeds to copy"}`, flags: ["Ephemeral"] })
+                if (!embeds.length) return interaction.reply({ content: `${client.config.emojis.NO} ${client.language({ textId: noEmbedsReason(message), guildId: interaction.guildId, locale: interaction.locale }) || noEmbedsReason(message)}`, flags: ["Ephemeral"] })
                 
                 // Save new state to history (clear AI generation info when copying)
                 saveToHistory(interaction.user.id, embeds, content, 'clear');
@@ -1279,10 +1306,17 @@ Return ONLY the corrected JSON.`
                     embeds = copiedMessage.embeds.map(embed => EmbedBuilder.from(embed))
                     content = copiedMessage.content
                     
+                    // Forwarded messages carry their embeds inside message_snapshots
+                    if (!embeds.length && copiedMessage.messageSnapshots?.size) {
+                        const snap = copiedMessage.messageSnapshots.first().message
+                        embeds = (snap.embeds || []).map(embed => EmbedBuilder.from(embed))
+                        if (!content) content = snap.content
+                    }
+                    
                     // A message with no embeds would break the generator UI
                     // (embeds[0] is assumed to exist) — bail early.
                     if (!embeds.length) {
-                        await modalInteraction.reply({ content: `${client.config.emojis.NO} ${client.language({ textId: "That message has no embeds to copy", guildId: interaction.guildId, locale: interaction.locale }) || "That message has no embeds to copy"}`, flags: ["Ephemeral"] })
+                        await modalInteraction.reply({ content: `${client.config.emojis.NO} ${client.language({ textId: noEmbedsReason(copiedMessage), guildId: interaction.guildId, locale: interaction.locale }) || noEmbedsReason(copiedMessage)}`, flags: ["Ephemeral"] })
                         return
                     }
                     

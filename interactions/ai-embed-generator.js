@@ -132,6 +132,11 @@ async function handleSimpleAIGenerate(interaction, client) {
 
     // Convert to Discord.js EmbedBuilder
     const discordEmbed = new EmbedBuilder(embedObj);
+    // Discord rejects embeds with no text content — guarantee a description
+    // even if the model produced a title/fields-only embed.
+    if (!discordEmbed.data.description) {
+        discordEmbed.setDescription(discordEmbed.data.title ? `**${discordEmbed.data.title}**` : '\u200b');
+    }
 
     // Update the original embed-generator message with the generated embed
     try {
@@ -511,6 +516,11 @@ async function handleImageChoice(interaction, client, imageChoice) {
 
     // Convert to Discord.js EmbedBuilder
     const discordEmbed = new EmbedBuilder(embedObj);
+    // Discord rejects embeds with no text content — guarantee a description
+    // even if the model produced a title/fields-only embed.
+    if (!discordEmbed.data.description) {
+        discordEmbed.setDescription(discordEmbed.data.title ? `**${discordEmbed.data.title}**` : '\u200b');
+    }
 
     // Create the embed message with edit buttons
     const editRow = new ActionRowBuilder().addComponents(
@@ -613,6 +623,11 @@ async function handleRegenerateButton(interaction, client) {
 
     // Convert to Discord.js EmbedBuilder
     const discordEmbed = new EmbedBuilder(embedObj);
+    // Discord rejects embeds with no text content — guarantee a description
+    // even if the model produced a title/fields-only embed.
+    if (!discordEmbed.data.description) {
+        discordEmbed.setDescription(discordEmbed.data.title ? `**${discordEmbed.data.title}**` : '\u200b');
+    }
 
     // Update the message
     await interaction.message.edit({
