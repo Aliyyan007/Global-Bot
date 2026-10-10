@@ -8,6 +8,52 @@ try {
     console.warn('[AI Embed Generator] AI features will be disabled until dependencies are installed.');
 }
 
+// Groq model fallback chain — Groq deprecates models frequently, so we try
+// several in order instead of hardcoding a single one. Set GROQ_MODEL to
+// force a specific model (it is tried first, then the chain).
+const GROQ_MODEL_CHAIN = [
+    "openai/gpt-oss-120b",
+    "meta-llama/llama-4-scout-17b-16e-instruct",
+    "llama-3.1-8b-instant",
+    "qwen/qwen3-32b"
+];
+
+function isModelNotFoundError(error) {
+    const status = error?.status || error?.statusCode;
+    const code = error?.code || error?.error?.code;
+    const msg = String(error?.message || '');
+    return status === 404 || code === 'model_not_found' || /does not exist|model_not_found|decommissioned/i.test(msg);
+}
+
+/**
+ * Call Groq chat completions with automatic model fallback.
+ * On a model-not-found / deprecated-model error the next model in
+ * GROQ_MODEL_CHAIN is tried. Other errors are rethrown immediately.
+ * @param {Object} groq - Groq client instance
+ * @param {Object} params - chat.completions.create params (model is overwritten)
+ * @returns {Promise<Object>} chat completion
+ */
+async function callGroq(groq, params) {
+    const models = process.env.GROQ_MODEL
+        ? [process.env.GROQ_MODEL, ...GROQ_MODEL_CHAIN.filter(m => m !== process.env.GROQ_MODEL)]
+        : GROQ_MODEL_CHAIN;
+
+    let lastError;
+    for (const model of models) {
+        try {
+            return await groq.chat.completions.create({ ...params, model });
+        } catch (error) {
+            if (isModelNotFoundError(error)) {
+                console.warn(`[AI Embed] Groq model "${model}" unavailable (${error.message?.slice(0, 80)}) — trying next model`);
+                lastError = error;
+                continue;
+            }
+            throw error;
+        }
+    }
+    throw lastError;
+}
+
 // Store for AI generation conversation states (user_id -> state dict)
 const aiGenerationStates = new Map();
 
@@ -360,12 +406,11 @@ BANNER:
 
 Return ONLY the search keywords. No quotes, no explanations.`;
 
-        const chatCompletion = await groq.chat.completions.create({
+        const chatCompletion = await callGroq(groq, {
             messages: [
                 { role: "system", content: systemPrompt },
                 { role: "user", content: `Generate ${imageType} image search terms for: ${userContext.substring(0, 500)}` }
             ],
-            model: "llama-3.3-70b-versatile",
             temperature: 0.4,
             max_tokens: 50
         });
@@ -615,12 +660,11 @@ REFINEMENT GOALS:
 
 CRITICAL: Return ONLY the refined JSON object. Start with { and end with }.`;
 
-        const chatCompletion = await groq.chat.completions.create({
+        const chatCompletion = await callGroq(groq, {
             messages: [
                 { role: "system", content: "You are a JSON refinement expert. Return ONLY valid JSON." },
                 { role: "user", content: refinementPrompt }
             ],
-            model: "llama-3.3-70b-versatile",
             temperature: 0.6, // Lower temperature for refinement
             max_tokens: 3000
         });
@@ -1056,7 +1100,7 @@ async function selectBestTemplate(description, userId = null) {
             }
         }
 
-        const chatCompletion = await groq.chat.completions.create({
+        const chatCompletion = await callGroq(groq, {
             messages: [
                 {
                     role: "system",
@@ -1095,7 +1139,6 @@ CLASSIFICATION RULES:
                 },
                 { role: "user", content: `Classify this embed request: "${description}"` }
             ],
-            model: "llama-3.3-70b-versatile",
             // Temperature 0.4 — balances consistency with variety. Too low (0.1)
             // causes repetitive picks; too high (>0.6) hurts accuracy.
             temperature: 0.4,
@@ -1674,12 +1717,11 @@ JSON FORMATTING RULES:
         // ═══════════════════════════════════════════════════════════════════
         // STEP 5: Generate the embed via Groq AI
         // ═══════════════════════════════════════════════════════════════════
-        const chatCompletion = await groq.chat.completions.create({
+        const chatCompletion = await callGroq(groq, {
             messages: [
                 { role: "system", content: systemPrompt },
                 { role: "user", content: `Create a stunning Discord embed for: ${description}\n\nTemplate: ${selectedTemplate.name}\nAdapt the template to perfectly match the user's demand. Fill in REAL content, not placeholders.\n\nREMEMBER: Include BOTH thumbnail and image URLs from the provided options!` }
             ],
-            model: "llama-3.3-70b-versatile",
             temperature: 0.8,
             max_tokens: 3000
         });
@@ -1909,6 +1951,8 @@ module.exports = {
     aiLastGenerationInfo,
     aiTemplateHistory,
     AI_REGENERATE_COOLDOWN_SECONDS,
+    callGroq,
+    GROQ_MODEL_CHAIN,
     EMBED_TEMPLATES,
     searchUnsplashImages,
     enhanceUnsplashQuery,

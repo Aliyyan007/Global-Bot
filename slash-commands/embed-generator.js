@@ -185,6 +185,32 @@ setInterval(() => {
     }
 }, 60 * 60 * 1000);
 
+/**
+ * Resolve a Discord message link to { guild, channel, messageId }.
+ * Works across servers — as long as the bot shares the source guild.
+ * @returns {Promise<{guild, channel, messageId} | {error: string}>}
+ */
+async function resolveMessageLink(client, currentGuild, link) {
+    const match = /channels\/(\d+)\/(\d+)\/(\d+)/.exec(link)
+    if (!match) return { error: 'invalid_link' }
+    const [, guildId, channelId, messageId] = match
+
+    const guild = guildId === currentGuild.id
+        ? currentGuild
+        : await client.guilds.fetch(guildId).catch(() => null)
+    if (!guild) return { error: 'guild_not_found' }
+
+    const channel = await guild.channels.fetch(channelId).catch(() => null)
+    if (!channel) return { error: 'channel_not_found', guild }
+
+    const botMember = guild.members.me || await guild.members.fetchMe().catch(() => null)
+    if (!botMember || !channel.permissionsFor(botMember).has("ViewChannel") || !channel.permissionsFor(botMember).has("ReadMessageHistory")) {
+        return { error: 'no_perms', guild, channel }
+    }
+
+    return { guild, channel, messageId }
+}
+
 module.exports = {
     name: "embed-generator",
     nameLocalizations: {
@@ -320,17 +346,19 @@ module.exports = {
             if (interaction2) {
                 if (interaction2.customId === "embed-generator_channel_select") {
                     const channel = interaction2.channels.first()
-                    if (channel.permissionsFor(interaction.guild.members.me).has(`ViewChannel`) && channel.permissionsFor(interaction.guild.members.me).has(`SendMessages`)) {
+                    const botMember = interaction.guild.members.me || await interaction.guild.members.fetchMe().catch(() => null)
+                    const perms = botMember ? channel.permissionsFor(botMember) : null
+                    if (perms?.has(`ViewChannel`) && perms.has(`SendMessages`) && perms.has(`EmbedLinks`)) {
                         const message = await channel.send({ content: interaction.message.content || " ", embeds: interaction.message.embeds })
-                        interaction2.update({ content: `${client.config.emojis.YES} ${client.language({ textId: "Message sent", guildId: interaction.guildId, locale: interaction.locale })}: ${message.url}`, components: [] })
+                        await interaction2.update({ content: `${client.config.emojis.YES} ${client.language({ textId: "Message sent", guildId: interaction.guildId, locale: interaction.locale })}: ${message.url}`, components: [] }).catch(() => null)
                         return interaction.editReply({ components: components })
                     } else {
-                        interaction2.update({ content: `${client.config.emojis.NO} ${client.language({ textId: "I do not have permissions for channel", guildId: interaction.guildId, locale: interaction.locale })} <#${channel.id}>\n${client.language({ textId: "I need the following permissions", guildId: interaction.guildId, locale: interaction.locale })}:\n1. ${client.language({ textId: "View Channel", guildId: interaction.guildId, locale: interaction.locale })}\n2. ${client.language({ textId: "Send messages", guildId: interaction.guildId, locale: interaction.locale })}`, flags: ["Ephemeral"] })
+                        await interaction2.update({ content: `${client.config.emojis.NO} ${client.language({ textId: "I do not have permissions for channel", guildId: interaction.guildId, locale: interaction.locale })} <#${channel.id}>\n${client.language({ textId: "I need the following permissions", guildId: interaction.guildId, locale: interaction.locale })}:\n1. ${client.language({ textId: "View Channel", guildId: interaction.guildId, locale: interaction.locale })}\n2. ${client.language({ textId: "Send messages", guildId: interaction.guildId, locale: interaction.locale })}\n3. ${client.language({ textId: "Embed links", guildId: interaction.guildId, locale: interaction.locale }) || "Embed links"}`, components: [] }).catch(() => null)
                         return interaction.editReply({ components: components })
                     }
                 }
                 if (interaction2.customId === "embed-generator_channel_cancel") {
-                    interaction2.update({ content: `${client.config.emojis.YES} ${client.language({ textId: "Selection cancelled", guildId: interaction.guildId, locale: interaction.locale })}`, components: [] })
+                    await interaction2.update({ content: `${client.config.emojis.YES} ${client.language({ textId: "Selection cancelled", guildId: interaction.guildId, locale: interaction.locale })}`, components: [] }).catch(() => null)
                     return interaction.editReply({ components: components })
                 }
             } else {
@@ -361,14 +389,14 @@ module.exports = {
             if (interaction && interaction.isModalSubmit()) {
                 const modalArgs = {}
                 interaction.fields.fields.each(field => modalArgs[field.customId] = field.value)
-                const channelId = modalArgs.link.split("/")[5]
-                const messageId = modalArgs.link.split("/")[6]
-                if (!channelId || !messageId) return interaction.reply({ content: `${client.config.emojis.NO} ${client.language({ textId: "Invalid message link", guildId: interaction.guildId, locale: interaction.locale })}`, flags: ["Ephemeral"] })
-                const channel = await interaction.guild.channels.fetch(channelId).catch(e => null)
-                if (!channel) return interaction.reply({ content: `${client.config.emojis.NO} ${client.language({ textId: "Text channel not found", guildId: interaction.guildId, locale: interaction.locale })}`, flags: ["Ephemeral"] })
-                if (!channel.permissionsFor(interaction.guild.members.me).has("ReadMessageHistory") || !channel.permissionsFor(interaction.guild.members.me).has("ViewChannel") || !channel.permissionsFor(interaction.guild.members.me).has("SendMessages")) {
-                    return interaction.reply({ content: `${client.config.emojis.NO} ${client.language({ textId: "I do not have permissions for channel", guildId: interaction.guildId, locale: interaction.locale })} <#${channel.id}>\n${client.language({ textId: "I need the following permissions", guildId: interaction.guildId, locale: interaction.locale })}:\n1. ${client.language({ textId: "View Channel", guildId: interaction.guildId, locale: interaction.locale })}\n2. ${client.language({ textId: "Read message history", guildId: interaction.guildId, locale: interaction.locale })}\n3. ${client.language({ textId: "Send messages", guildId: interaction.guildId, locale: interaction.locale })}`, flags: ["Ephemeral"] })
-                }
+                const resolved = await resolveMessageLink(client, interaction.guild, modalArgs.link)
+                const errMsg = resolved.error === 'invalid_link' ? client.language({ textId: "Invalid message link", guildId: interaction.guildId, locale: interaction.locale })
+                    : resolved.error === 'guild_not_found' ? (client.language({ textId: "I am not in the server this message is from", guildId: interaction.guildId, locale: interaction.locale }) || "I am not in the server this message is from")
+                    : resolved.error === 'channel_not_found' ? client.language({ textId: "Text channel not found", guildId: interaction.guildId, locale: interaction.locale })
+                    : resolved.error === 'no_perms' ? `${client.language({ textId: "I do not have permissions for channel", guildId: interaction.guildId, locale: interaction.locale })} <#${resolved.channel.id}>${resolved.guild.id !== interaction.guildId ? ` (in ${resolved.guild.name})` : ''}\n${client.language({ textId: "I need the following permissions", guildId: interaction.guildId, locale: interaction.locale })}:\n1. ${client.language({ textId: "View Channel", guildId: interaction.guildId, locale: interaction.locale })}\n2. ${client.language({ textId: "Read message history", guildId: interaction.guildId, locale: interaction.locale })}`
+                    : null
+                if (errMsg) return interaction.reply({ content: `${client.config.emojis.NO} ${errMsg}`, flags: ["Ephemeral"] })
+                const { channel, messageId } = resolved
                 const message = await channel.messages.fetch({ message: messageId, cache: false, force: true }).catch(e => null)
                 if (!message) return interaction.reply({ content: `${client.config.emojis.NO} ${client.language({ textId: "Message not found", guildId: interaction.guildId, locale: interaction.locale })}`, flags: ["Ephemeral"] })
                 if (message.author.id !== client.user.id) return interaction.reply({ content: `${client.config.emojis.NO} ${client.language({ textId: "This is not my message", guildId: interaction.guildId, locale: interaction.locale })}`, flags: ["Ephemeral"] })
@@ -408,14 +436,15 @@ module.exports = {
             if (interaction && interaction.isModalSubmit()) {
                 const modalArgs = {}
                 interaction.fields.fields.each(field => modalArgs[field.customId] = field.value)
-                const channelId = modalArgs.link.split("/")[5]
-                const messageId = modalArgs.link.split("/")[6]
-                if (!channelId || !messageId) return interaction.reply({ content: `${client.config.emojis.NO} ${client.language({ textId: "Invalid message link", guildId: interaction.guildId, locale: interaction.locale })}`, flags: ["Ephemeral"] })
-                const channel = await interaction.guild.channels.fetch(channelId).catch(e => null)
-                if (!channel) return interaction.reply({ content: `${client.config.emojis.NO} ${client.language({ textId: "Text channel not found", guildId: interaction.guildId, locale: interaction.locale })}`, flags: ["Ephemeral"] })
-                if (!channel.permissionsFor(interaction.guild.members.me).has("ReadMessageHistory") || !channel.permissionsFor(interaction.guild.members.me).has("ViewChannel")) {
-                    return interaction.reply({ content: `${client.config.emojis.NO} ${client.language({ textId: "I do not have permissions for channel", guildId: interaction.guildId, locale: interaction.locale })} <#${channel.id}>\n${client.language({ textId: "I need the following permissions", guildId: interaction.guildId, locale: interaction.locale })}:\n1. ${client.language({ textId: "View Channel", guildId: interaction.guildId, locale: interaction.locale })}\n2. ${client.language({ textId: "Read message history", guildId: interaction.guildId, locale: interaction.locale })}`, flags: ["Ephemeral"] })
+                const resolved = await resolveMessageLink(client, interaction.guild, modalArgs.link)
+                if (resolved.error === 'invalid_link') return interaction.reply({ content: `${client.config.emojis.NO} ${client.language({ textId: "Invalid message link", guildId: interaction.guildId, locale: interaction.locale })}`, flags: ["Ephemeral"] })
+                if (resolved.error === 'guild_not_found') return interaction.reply({ content: `${client.config.emojis.NO} ${client.language({ textId: "I am not in the server this message is from", guildId: interaction.guildId, locale: interaction.locale }) || "I am not in the server this message is from"}`, flags: ["Ephemeral"] })
+                if (resolved.error === 'channel_not_found') return interaction.reply({ content: `${client.config.emojis.NO} ${client.language({ textId: "Text channel not found", guildId: interaction.guildId, locale: interaction.locale })}`, flags: ["Ephemeral"] })
+                if (resolved.error === 'no_perms') {
+                    const crossTag = resolved.guild.id !== interaction.guildId ? ` (in ${resolved.guild.name})` : ''
+                    return interaction.reply({ content: `${client.config.emojis.NO} ${client.language({ textId: "I do not have permissions for channel", guildId: interaction.guildId, locale: interaction.locale })} <#${resolved.channel.id}>${crossTag}\n${client.language({ textId: "I need the following permissions", guildId: interaction.guildId, locale: interaction.locale })}:\n1. ${client.language({ textId: "View Channel", guildId: interaction.guildId, locale: interaction.locale })}\n2. ${client.language({ textId: "Read message history", guildId: interaction.guildId, locale: interaction.locale })}`, flags: ["Ephemeral"] })
                 }
+                const { channel, messageId } = resolved
                 
                 // Save current state to history before copying
                 const currentEmbeds = interaction.message.embeds.map(e => new EmbedBuilder(e.toJSON()));
@@ -426,6 +455,10 @@ module.exports = {
                 
                 embeds = message.embeds.map(embed => EmbedBuilder.from(embed))
                 content = message.content
+                
+                // A message with no embeds would leave embeds[] empty and the
+                // generator UI assumes embeds[0] always exists — bail early.
+                if (!embeds.length) return interaction.reply({ content: `${client.config.emojis.NO} ${client.language({ textId: "That message has no embeds to copy", guildId: interaction.guildId, locale: interaction.locale }) || "That message has no embeds to copy"}`, flags: ["Ephemeral"] })
                 
                 // Save new state to history (clear AI generation info when copying)
                 saveToHistory(interaction.user.id, embeds, content, 'clear');
@@ -505,8 +538,10 @@ module.exports = {
         
         // Handle Paste button
         if (interaction.customId.includes("paste")) {
-            if (!interaction.channel.permissionsFor(interaction.guild.members.me).has("ViewChannel") || !interaction.channel.permissionsFor(interaction.guild.members.me).has("ReadMessageHistory")) {
-                return interaction.reply({ content: `${client.config.emojis.NO} ${client.language({ textId: "I do not have permissions for channel", guildId: interaction.guildId, locale: interaction.locale })} <#${interaction.channel.id}>\n${client.language({ textId: "I need the following permissions", guildId: interaction.guildId, locale: interaction.locale })}:\n1. ${client.language({ textId: "View Channel", guildId: interaction.guildId, locale: interaction.locale })}\n2. ${client.language({ textId: "Read message history", guildId: interaction.guildId, locale: interaction.locale })}`, flags: ["Ephemeral"] })
+            const botMember = interaction.guild.members.me || await interaction.guild.members.fetchMe().catch(() => null)
+            const chanPerms = botMember ? interaction.channel.permissionsFor(botMember) : null
+            if (!chanPerms?.has("ViewChannel") || !chanPerms.has("ReadMessageHistory") || !chanPerms.has("ManageMessages")) {
+                return interaction.reply({ content: `${client.config.emojis.NO} ${client.language({ textId: "I do not have permissions for channel", guildId: interaction.guildId, locale: interaction.locale })} <#${interaction.channel.id}>\n${client.language({ textId: "I need the following permissions", guildId: interaction.guildId, locale: interaction.locale })}:\n1. ${client.language({ textId: "View Channel", guildId: interaction.guildId, locale: interaction.locale })}\n2. ${client.language({ textId: "Read message history", guildId: interaction.guildId, locale: interaction.locale })}\n3. ${client.language({ textId: "Manage messages", guildId: interaction.guildId, locale: interaction.locale }) || "Manage messages"}`, flags: ["Ephemeral"] })
             }
             const components = JSON.parse(JSON.stringify(message.components))
             await interaction.update({ embeds: message.embeds, components: [] })
@@ -1110,6 +1145,7 @@ module.exports = {
                         if (apiKey) {
                             try {
                                 const Groq = require('groq-sdk')
+                                const { callGroq } = require('../handler/aiEmbedGenerator')
                                 const groq = new Groq({ apiKey })
                                 
                                 const systemPrompt = `You are a JSON validator and corrector for Discord embeds. Your job is to fix malformed JSON and return ONLY valid JSON.
@@ -1134,12 +1170,11 @@ Common Discord embed fields:
 
 Return ONLY the corrected JSON.`
 
-                                const chatCompletion = await groq.chat.completions.create({
+                                const chatCompletion = await callGroq(groq, {
                                     messages: [
                                         { role: "system", content: systemPrompt },
                                         { role: "user", content: `Fix this malformed JSON:\n\n${jsonCode}` }
                                     ],
-                                    model: "llama-3.3-70b-versatile",
                                     temperature: 0.1,
                                     max_tokens: 2048
                                 })
@@ -1221,21 +1256,17 @@ Return ONLY the corrected JSON.`
                 if (modalInteraction && modalInteraction.isModalSubmit()) {
                     const modalArgs = {}
                     modalInteraction.fields.fields.each(field => modalArgs[field.customId] = field.value)
-                    const channelId = modalArgs.link.split("/")[5]
-                    const messageId = modalArgs.link.split("/")[6]
-                    if (!channelId || !messageId) {
-                        await modalInteraction.reply({ content: `${client.config.emojis.NO} ${client.language({ textId: "Invalid message link", guildId: interaction.guildId, locale: interaction.locale })}`, flags: ["Ephemeral"] })
-                        return // Early return for error
+                    const resolved = await resolveMessageLink(client, interaction.guild, modalArgs.link)
+                    const errMsg = resolved.error === 'invalid_link' ? client.language({ textId: "Invalid message link", guildId: interaction.guildId, locale: interaction.locale })
+                        : resolved.error === 'guild_not_found' ? (client.language({ textId: "I am not in the server this message is from", guildId: interaction.guildId, locale: interaction.locale }) || "I am not in the server this message is from")
+                        : resolved.error === 'channel_not_found' ? client.language({ textId: "Text channel not found", guildId: interaction.guildId, locale: interaction.locale })
+                        : resolved.error === 'no_perms' ? `${client.language({ textId: "I do not have permissions for channel", guildId: interaction.guildId, locale: interaction.locale })} <#${resolved.channel.id}>${resolved.guild.id !== interaction.guildId ? ` (in ${resolved.guild.name})` : ''}\n${client.language({ textId: "I need the following permissions", guildId: interaction.guildId, locale: interaction.locale })}:\n1. ${client.language({ textId: "View Channel", guildId: interaction.guildId, locale: interaction.locale })}\n2. ${client.language({ textId: "Read message history", guildId: interaction.guildId, locale: interaction.locale })}`
+                        : null
+                    if (errMsg) {
+                        await modalInteraction.reply({ content: `${client.config.emojis.NO} ${errMsg}`, flags: ["Ephemeral"] })
+                        return
                     }
-                    const channel = await interaction.guild.channels.fetch(channelId).catch(e => null)
-                    if (!channel) {
-                        await modalInteraction.reply({ content: `${client.config.emojis.NO} ${client.language({ textId: "Text channel not found", guildId: interaction.guildId, locale: interaction.locale })}`, flags: ["Ephemeral"] })
-                        return // Early return for error
-                    }
-                    if (!channel.permissionsFor(interaction.guild.members.me).has("ReadMessageHistory") || !channel.permissionsFor(interaction.guild.members.me).has("ViewChannel")) {
-                        await modalInteraction.reply({ content: `${client.config.emojis.NO} ${client.language({ textId: "I do not have permissions for channel", guildId: interaction.guildId, locale: interaction.locale })} <#${channel.id}>\n${client.language({ textId: "I need the following permissions", guildId: interaction.guildId, locale: interaction.locale })}:\n1. ${client.language({ textId: "View Channel", guildId: interaction.guildId, locale: interaction.locale })}\n2. ${client.language({ textId: "Read message history", guildId: interaction.guildId, locale: interaction.locale })}`, flags: ["Ephemeral"] })
-                        return // Early return for error
-                    }
+                    const { channel, messageId } = resolved
                     const copiedMessage = await channel.messages.fetch({ message: messageId, cache: false, force: true }).catch(e => null)
                     if (!copiedMessage) {
                         await modalInteraction.reply({ content: `${client.config.emojis.NO} ${client.language({ textId: "Message not found", guildId: interaction.guildId, locale: interaction.locale })}`, flags: ["Ephemeral"] })
@@ -1247,6 +1278,13 @@ Return ONLY the corrected JSON.`
                     
                     embeds = copiedMessage.embeds.map(embed => EmbedBuilder.from(embed))
                     content = copiedMessage.content
+                    
+                    // A message with no embeds would break the generator UI
+                    // (embeds[0] is assumed to exist) — bail early.
+                    if (!embeds.length) {
+                        await modalInteraction.reply({ content: `${client.config.emojis.NO} ${client.language({ textId: "That message has no embeds to copy", guildId: interaction.guildId, locale: interaction.locale }) || "That message has no embeds to copy"}`, flags: ["Ephemeral"] })
+                        return
+                    }
                     
                     // Save new state to history (clear AI generation info when copying)
                     saveToHistory(interaction.user.id, embeds, content, 'clear');
@@ -1283,24 +1321,17 @@ Return ONLY the corrected JSON.`
                     const modalArgs = {}
                     modalInteraction.fields.fields.each(field => modalArgs[field.customId] = field.value)
                     
-                    const channelId = modalArgs.link.split("/")[5]
-                    const messageId = modalArgs.link.split("/")[6]
-                    
-                    if (!channelId || !messageId) {
-                        await modalInteraction.reply({ content: `${client.config.emojis.NO} ${client.language({ textId: "Invalid message link", guildId: interaction.guildId, locale: interaction.locale })}`, flags: ["Ephemeral"] })
-                        return // Early return for error
+                    const resolved = await resolveMessageLink(client, interaction.guild, modalArgs.link)
+                    const errMsg = resolved.error === 'invalid_link' ? client.language({ textId: "Invalid message link", guildId: interaction.guildId, locale: interaction.locale })
+                        : resolved.error === 'guild_not_found' ? (client.language({ textId: "I am not in the server this message is from", guildId: interaction.guildId, locale: interaction.locale }) || "I am not in the server this message is from")
+                        : resolved.error === 'channel_not_found' ? client.language({ textId: "Text channel not found", guildId: interaction.guildId, locale: interaction.locale })
+                        : resolved.error === 'no_perms' ? `${client.language({ textId: "I do not have permissions for channel", guildId: interaction.guildId, locale: interaction.locale })} <#${resolved.channel.id}>${resolved.guild.id !== interaction.guildId ? ` (in ${resolved.guild.name})` : ''}\n${client.language({ textId: "I need the following permissions", guildId: interaction.guildId, locale: interaction.locale })}:\n1. ${client.language({ textId: "View Channel", guildId: interaction.guildId, locale: interaction.locale })}\n2. ${client.language({ textId: "Read message history", guildId: interaction.guildId, locale: interaction.locale })}`
+                        : null
+                    if (errMsg) {
+                        await modalInteraction.reply({ content: `${client.config.emojis.NO} ${errMsg}`, flags: ["Ephemeral"] })
+                        return
                     }
-                    
-                    const channel = await interaction.guild.channels.fetch(channelId).catch(e => null)
-                    if (!channel) {
-                        await modalInteraction.reply({ content: `${client.config.emojis.NO} ${client.language({ textId: "Text channel not found", guildId: interaction.guildId, locale: interaction.locale })}`, flags: ["Ephemeral"] })
-                        return // Early return for error
-                    }
-                    
-                    if (!channel.permissionsFor(interaction.guild.members.me).has("ReadMessageHistory") || !channel.permissionsFor(interaction.guild.members.me).has("ViewChannel")) {
-                        await modalInteraction.reply({ content: `${client.config.emojis.NO} ${client.language({ textId: "I do not have permissions for channel", guildId: interaction.guildId, locale: interaction.locale })} <#${channel.id}>\n${client.language({ textId: "I need the following permissions", guildId: interaction.guildId, locale: interaction.locale })}:\n1. ${client.language({ textId: "View Channel", guildId: interaction.guildId, locale: interaction.locale })}\n2. ${client.language({ textId: "Read message history", guildId: interaction.guildId, locale: interaction.locale })}`, flags: ["Ephemeral"] })
-                        return // Early return for error
-                    }
+                    const { channel, messageId } = resolved
                     
                     const messageToEdit = await channel.messages.fetch({ message: messageId, cache: false, force: true }).catch(e => null)
                     if (!messageToEdit) {
