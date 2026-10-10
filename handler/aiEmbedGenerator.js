@@ -11,11 +11,12 @@ try {
 // Groq model fallback chain — Groq deprecates models frequently, so we try
 // several in order instead of hardcoding a single one. Set GROQ_MODEL to
 // force a specific model (it is tried first, then the chain).
+// NOTE: gpt-oss-* are reasoning models — reasoning_effort 'low' is applied
+// automatically so the CoT doesn't consume max_tokens and return empty content.
 const GROQ_MODEL_CHAIN = [
     "openai/gpt-oss-120b",
-    "meta-llama/llama-4-scout-17b-16e-instruct",
-    "llama-3.1-8b-instant",
-    "qwen/qwen3-32b"
+    "qwen/qwen3.8-27b",
+    "openai/gpt-oss-20b"
 ];
 
 function isModelNotFoundError(error) {
@@ -41,7 +42,21 @@ async function callGroq(groq, params) {
     let lastError;
     for (const model of models) {
         try {
-            return await groq.chat.completions.create({ ...params, model });
+            const callParams = { ...params, model };
+            // gpt-oss models spend max_tokens on reasoning unless effort is
+            // set — low effort still produces good output for these tasks.
+            if (model.startsWith('openai/gpt-oss') && callParams.reasoning_effort === undefined) {
+                callParams.reasoning_effort = 'low';
+            }
+            const completion = await groq.chat.completions.create(callParams);
+            // A reasoning model that exhausts max_tokens on CoT returns empty
+            // content — treat as a failure so the next model gets a shot.
+            if (!completion?.choices?.[0]?.message?.content) {
+                console.warn(`[AI Embed] Groq model "${model}" returned empty content — trying next model`);
+                lastError = new Error(`Empty response from ${model}`);
+                continue;
+            }
+            return completion;
         } catch (error) {
             if (isModelNotFoundError(error)) {
                 console.warn(`[AI Embed] Groq model "${model}" unavailable (${error.message?.slice(0, 80)}) — trying next model`);
@@ -412,7 +427,7 @@ Return ONLY the search keywords. No quotes, no explanations.`;
                 { role: "user", content: `Generate ${imageType} image search terms for: ${userContext.substring(0, 500)}` }
             ],
             temperature: 0.4,
-            max_tokens: 50
+            max_tokens: 150
         });
 
         let aiQuery = chatCompletion.choices[0].message.content.trim();
@@ -1142,7 +1157,7 @@ CLASSIFICATION RULES:
             // Temperature 0.4 — balances consistency with variety. Too low (0.1)
             // causes repetitive picks; too high (>0.6) hurts accuracy.
             temperature: 0.4,
-            max_tokens: 10
+            max_tokens: 50
         });
 
         // Normalize AI output: lowercase, strip punctuation/quotes/whitespace
