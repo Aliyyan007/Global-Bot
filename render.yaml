@@ -1,0 +1,59 @@
+# Render deployment blueprint for Global Bot (Discord bot)
+#
+# IMPORTANT: a Discord bot is a "Background Worker", NOT a web service —
+# it does not bind to a port.
+#
+# Env vars marked `sync: false` must be filled in manually in the
+# Render Dashboard → Environment tab (they are secrets; never commit them).
+
+services:
+  - type: worker
+    name: global-bot
+    runtime: node
+    # npm ci uses the committed lockfile for deterministic installs.
+    # Native deps (zlib-sync, bufferutil, utf-8-validate) are optional
+    # and build fine on Render's Linux image; discord.js falls back
+    # gracefully if they ever fail.
+    buildCommand: npm ci && node scripts/downloadFonts.js || true
+    startCommand: node shard.js
+    # Persistent disk keeps voice_data.json (auto-voice configs) across
+    # deploys/restarts. Requires a paid plan — remove this block on free tier.
+    disk:
+      name: global-bot-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: VOICE_DATA_PATH
+        value: /var/data/voice_data.json
+      # --- Required secrets (set in dashboard) ---
+      - key: discordToken
+        sync: false
+      - key: mongoDB_SRV
+        sync: false
+      # --- Optional secrets ---
+      - key: OWNER_ID
+        sync: false
+      - key: mongoDB_SRV_SECONDARY
+        sync: false
+      - key: mongoDB_SRV_AUTOVOICE
+        sync: false
+      - key: mongoDB_SRV_BACKUP
+        sync: false
+      - key: REDIS_URL_1
+        sync: false
+      - key: REDIS_URL_2
+        sync: false
+      - key: REDIS_URL_3
+        sync: false
+      - key: B2_KEY_ID
+        sync: false
+      - key: B2_APPLICATION_KEY
+        sync: false
+      - key: B2_BUCKET_ID
+        sync: false
+      - key: B2_BUCKET_NAME
+        sync: false
+      - key: UNSPLASH_ACCESS_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
