@@ -11,10 +11,11 @@ services:
     name: global-bot
     runtime: node
     # npm ci uses the committed lockfile for deterministic installs.
-    # Native deps (zlib-sync, bufferutil, utf-8-validate) are optional
-    # and build fine on Render's Linux image; discord.js falls back
-    # gracefully if they ever fail.
-    buildCommand: npm ci && node scripts/downloadFonts.js || true
+    # --omit=optional skips the native accelerators (zlib-sync,
+    # bufferutil, utf-8-validate) which compile from source and can
+    # take 10+ minutes on free instances — discord.js falls back to
+    # pure JS and works identically without them.
+    buildCommand: npm ci --omit=optional && node scripts/downloadFonts.js || true
     startCommand: node shard.js
     # Persistent disk keeps voice_data.json (auto-voice configs) across
     # deploys/restarts. Requires a paid plan — remove this block on free tier.
@@ -63,7 +64,7 @@ services:
 #
 # Background workers require a paid plan. On the free tier you can instead
 # create a **Web Service** manually pointing at this repo:
-#   Build command: npm ci && node scripts/downloadFonts.js || true
+#   Build command: npm ci --omit=optional && node scripts/downloadFonts.js || true
 #   Start command: node shard.js
 # The bot detects Render's injected PORT and serves a health endpoint on it,
 # so the deploy passes the port scan.
