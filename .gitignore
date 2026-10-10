@@ -48,3 +48,6 @@ fonts/
 
 # OS
 desktop.ini
+
+# Font source archive (extracted .otf is tracked)
+GamestationCondensed.zip
