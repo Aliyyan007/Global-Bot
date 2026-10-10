@@ -87,5 +87,23 @@ manager.spawn({ timeout: -1 }).then(shards => {
     require("./shard-modules/cron.js")(manager)
 })
 
+// Keep-alive HTTP server — platforms that run this as a "web service"
+// (e.g. Render free tier) require an open port or the deploy is marked
+// failed and restarted in a loop. Render injects PORT automatically;
+// when unset (local runs, background-worker services) this is skipped.
+if (process.env.PORT) {
+    require('http').createServer((req, res) => {
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({
+            status: 'ok',
+            uptime: Math.floor(process.uptime()),
+            shards: manager.shards.size,
+            readyShards: shardsReady.length
+        }))
+    }).listen(process.env.PORT, () => {
+        console.log(`[KeepAlive] HTTP health endpoint listening on :${process.env.PORT}`)
+    })
+}
+
 // Setup centralized error handling for shard manager
 setupGlobalHandlers({ ownerId: config.discord.ownerId })

@@ -57,3 +57,21 @@ services:
         sync: false
       - key: GROQ_API_KEY
         sync: false
+
+# ─────────────────────────────────────────────────────────────────────────────
+# FREE-TIER ALTERNATIVE (no paid plan / no disk)
+#
+# Background workers require a paid plan. On the free tier you can instead
+# create a **Web Service** manually pointing at this repo:
+#   Build command: npm ci && node scripts/downloadFonts.js || true
+#   Start command: node shard.js
+# The bot detects Render's injected PORT and serves a health endpoint on it,
+# so the deploy passes the port scan.
+#
+# Two caveats on free tier:
+#   1. Free web services sleep after ~15 min without inbound HTTP traffic.
+#      Keep it alive by pinging https://<your-service>.onrender.com every
+#      ~10 min from UptimeRobot / cron-job.org (free).
+#   2. No persistent disk — voice_data.json resets on every redeploy.
+#      Simply omit VOICE_DATA_PATH (default path stays inside the project).
+# ─────────────────────────────────────────────────────────────────────────────
