@@ -4,6 +4,7 @@
  * This is the exact same system as the standalone Auto Voice Node bot
  */
 
+const { Events } = require('discord.js');
 const dataStore = require('./voice/dataStore');
 const voiceManager = require('./voice/voiceManager');
 const voicePreferences = require('./voice/voicePreferences');
@@ -29,7 +30,8 @@ async function initialize(discordClient) {
   if (client.isReady()) {
     await reconcile(client);
   } else {
-    client.once('ready', () => reconcile(client).catch(e => console.error('[Auto Voice] Reconciliation failed:', e)));
+    // discord.js v14 emits 'clientReady' (the old 'ready' alias was removed)
+    client.once(Events.ClientReady, () => reconcile(client).catch(e => console.error('[Auto Voice] Reconciliation failed:', e)));
   }
 
   console.log('[Auto Voice] System initialized');

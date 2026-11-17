@@ -998,24 +998,11 @@ class Profile {
         if (this.level > oldLevel) {
             guildQuests = this.client.cache.quests.filter(quest => quest.guildID === this.guildID && quest.isEnabled && quest.targets.some(target => target.type === "level"))
             if (guildQuests.size) await this.addQuestProgression("level", this.level - oldLevel, undefined, false, withoutNotification)
-            if (!withoutNotification) {
-                // Call new notification channels system
-                try {
-                    const guild = this.client.guilds.cache.get(this.guildID);
-                    if (guild) {
-                        const member = await guild.members.fetch(this.userID).catch(e => null);
-                        if (member) {
-                            const { handleLevelUp } = require('../modules/notification-channels/eventIntegration');
-                            await handleLevelUp(this.guildID, member, this.level, this.client);
-                        }
-                    }
-                } catch (error) {
-                    console.error('Error calling handleLevelUp:', error);
-                }
-                
-                // Keep old notification system for backward compatibility (roles, achievements, etc.)
-                await this.newLevelNotify();
-            }
+            // newLevelNotify covers the configured level-up channel(s), level
+            // roles and achievements — the combined-panel level_up channel was
+            // removed from the notification settings UI, so the separate
+            // dispatcher path is gone (it also caused duplicate rank cards).
+            if (!withoutNotification) await this.newLevelNotify()
         }
         i = 0
         if (settings.seasonLevelsEnabled && !withoutSeasonXP) {
@@ -1099,7 +1086,9 @@ class Profile {
             }
             if (this.seasonLevel < seasonOldLevel) await this.newSeasonLevelNotify()
         }
-        if (this.level < oldLevel) await this.newLevelNotify()
+        // Level went down — resync roles/achievements but don't announce
+        // a celebratory "reached level" card for a demotion.
+        if (this.level < oldLevel) await this.newLevelNotify({ silent: true })
         if (save) await this.save()
         return
     }
@@ -1233,12 +1222,18 @@ class Profile {
         if (save) await this.save()
         return
     }
-    async newLevelNotify() {
+    /**
+     * Level-up side effects: announce in the configured channel (rank card),
+     * sync level roles and grant level achievements.
+     * Pass { silent: true } to skip the announcement + activity log — used for
+     * level decreases and bulk recomputes where a card per user would spam.
+     */
+    async newLevelNotify({ silent = false } = {}) {
         const guild = this.client.guilds.cache.get(this.guildID)
         if (guild) {
             const member = await guild.members.fetch(this.userID).catch(e => null)
             if (member) {
-                this.client.emit("economyLogCreate", this.guildID, `<@${member.user.id}> (${member.user.username}) ${this.client.language({ textId: "reached level", guildId: this.guildID })} 🎖${this.level}`)
+                if (!silent) this.client.emit("economyLogCreate", this.guildID, `<@${member.user.id}> (${member.user.username}) ${this.client.language({ textId: "reached level", guildId: this.guildID })} 🎖${this.level}`)
                 const settings = this.client.cache.settings.find(settings => settings.guildID === this.guildID)
                 if (!settings) return
 
@@ -1254,7 +1249,7 @@ class Profile {
                 }
 
                 // Legacy combined-panel level-up channel (kept for guilds configured before that option was removed)
-                if (settings.levelUpNotifications?.enabled && settings.levelUpNotifications?.channelId) {
+                if (!silent && settings.levelUpNotifications?.enabled && settings.levelUpNotifications?.channelId) {
                     try {
                         const notifChannel = await guild.channels.fetch(settings.levelUpNotifications.channelId).catch(() => null)
                         if (notifChannel) {
@@ -1293,7 +1288,7 @@ class Profile {
 
                 // Dedicated level-up channel: rank card, with an embed only for
                 // role changes or as a fallback when card generation fails
-                if (settings.channels?.levelNotificationChannelId) {
+                if (!silent && settings.channels?.levelNotificationChannelId) {
                     const notifChannel = await guild.channels.fetch(settings.channels.levelNotificationChannelId).catch(e => null)
                     if (notifChannel) {
                         const files = []
@@ -1414,7 +1409,7 @@ class Profile {
             i++
             if (i > 100000) throw new Error(`Infinite loop: subtractLevel:1097, amount: ${amount}, LEVEL_FACTOR: ${LEVEL_FACTOR}, oldLevel: ${oldLevel}, oldTotalXp: ${oldTotalXp}`) 
         }
-        await this.newLevelNotify()
+        await this.newLevelNotify({ silent: true })
         if (save) await this.save()
         return
     }

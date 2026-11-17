@@ -36,7 +36,10 @@ module.exports = {
             if (!interaction.channel || !interaction.channel.permissionsFor(interaction.guild.members.me).has(PermissionFlagsBits.EmbedLinks) || !interaction.channel.permissionsFor(interaction.guild.members.me).has(PermissionFlagsBits.ViewChannel)) {
                 return interaction.reply({ content: `${client.language({ textId: "To use this command I need the following permissions", guildId: interaction.guildId, locale: interaction.locale })}:\n${client.language({ textId: "1. View Channel", guildId: interaction.guildId, locale: interaction.locale })}\n${client.language({ textId: "2. Embed Links", guildId: interaction.guildId, locale: interaction.locale })}`, flags: ["Ephemeral"] })
             }
-            await interaction.deferReply()
+            await interaction.deferReply().catch(() => null)
+            // Expired/retried token (e.g. client resent the command) — bail
+            // instead of cascading failures on a dead interaction.
+            if (!interaction.deferred) return
         }
         const filter = m => m.author.id == interaction.user.id && !m.content.includes("\u200B") && m.content.length > 0 && m.channel.id == interaction.channel.id
         const embed = new EmbedBuilder()
@@ -3233,7 +3236,9 @@ module.exports = {
                             if (i > 100000) break
                         }
                         if (profile.level !== oldLevel) {
-                            await profile.newLevelNotify(client)
+                            // Silent: resync level roles/achievements without
+                            // spamming a rank card per member.
+                            await profile.newLevelNotify({ silent: true })
                             const member = await interaction.guild.members.fetch(profile.userID).catch(() => null)
                             if (member && settings.levelsRoles.length > 0) {
                                 const rolesAdd = settings.levelsRoles.filter(e => profile.level >= e.levelFrom && (!e.levelTo || e.levelTo > profile.level) && !member.roles.cache.has(e.roleId))

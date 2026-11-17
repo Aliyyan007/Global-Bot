@@ -189,9 +189,14 @@ async function renderTypePage(client, interaction, type) {
             opts.push({ label: `${L('Mention everyone')}: ${L('On')}`, value: 'me_on', emoji: '📣', default: config.mentionEveryone === true })
             opts.push({ label: `${L('Mention everyone')}: ${L('Off')}`, value: 'me_off', emoji: '🔕', default: config.mentionEveryone !== true })
         }
+        // One default per option group is pre-selected, so maxValues must allow
+        // at least that many picks — otherwise Discord rejects the payload with
+        // COMPONENT_TOO_MANY_DEFAULT_VALUES (50035).
+        const optionGroups = 1 + (t.thumbnail ? 1 : 0) + (t.memberCount ? 1 : 0) + (t.mentions ? 1 : 0)
         const optionsSelect = new StringSelectMenuBuilder()
             .setCustomId(`cmd{manager-settings}title{notificationChannels}${nc('option', type)}usr{${interaction.user.id}}`)
             .setPlaceholder(`⚙️ ${L('Options')}`)
+            .setMaxValues(optionGroups)
             .setOptions(opts.slice(0, 25))
         rows.push(new ActionRowBuilder().addComponents(optionsSelect))
     }
@@ -288,18 +293,22 @@ async function handleAction(client, interaction, action, firstRow) {
         }
 
         case 'option': {
-            const v = interaction.values?.[0]
-            if (!v) break
+            const values = interaction.values || []
+            if (!values.length) break
+            // Multi-select menu: apply every pick; for conflicting picks within a
+            // group the later option wins (values arrive in menu order).
             const patch = {}
-            if (v === 'msgtype_default') patch.messageType = 'default'
-            else if (v === 'msgtype_custom') patch.messageType = 'custom'
-            else if (v === 'thumb_static') patch.thumbnailType = 'static'
-            else if (v === 'thumb_user_specific') patch.thumbnailType = 'user_specific'
-            else if (v === 'mc_on') patch.showMemberCount = true
-            else if (v === 'mc_off') patch.showMemberCount = false
-            else if (v === 'me_on') patch.mentionEveryone = true
-            else if (v === 'me_off') patch.mentionEveryone = false
-            else break
+            for (const v of values) {
+                if (v === 'msgtype_default') patch.messageType = 'default'
+                else if (v === 'msgtype_custom') patch.messageType = 'custom'
+                else if (v === 'thumb_static') patch.thumbnailType = 'static'
+                else if (v === 'thumb_user_specific') patch.thumbnailType = 'user_specific'
+                else if (v === 'mc_on') patch.showMemberCount = true
+                else if (v === 'mc_off') patch.showMemberCount = false
+                else if (v === 'me_on') patch.mentionEveryone = true
+                else if (v === 'me_off') patch.mentionEveryone = false
+            }
+            if (!Object.keys(patch).length) break
             await updateConfig(guildId, type, patch)
             const payload = await renderTypePage(client, interaction, type)
             return respond(payload)
