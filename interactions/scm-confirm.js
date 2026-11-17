@@ -254,11 +254,20 @@ module.exports = {
         const configEmbed = buildPreviewEmbed(client, interaction, newSession)
         const panelComponents = buildAddPanelComponents(client, interaction, newSession)
         
-        await interaction.message.edit({
-            content: null,
-            embeds: [configEmbed],
-            components: panelComponents
-        })
+        // The panel message may have been deleted between interactions — try
+        // to edit it, and if it's gone, post a fresh panel and repoint the
+        // session so later wizard steps update the new message.
+        const panelPayload = { content: null, embeds: [configEmbed], components: panelComponents }
+        const edited = await interaction.message.edit(panelPayload).catch(() => null)
+        if (!edited) {
+            const fresh = await interaction.channel?.send(panelPayload).catch(() => null)
+            if (fresh) {
+                updateSession(interaction.guildId, interaction.user.id, {
+                    publicMessageId: fresh.id,
+                    channelId: fresh.channelId || interaction.channelId
+                })
+            }
+        }
         
         // Store session data for background processing
         const sessionData = {

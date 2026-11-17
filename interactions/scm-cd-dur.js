@@ -34,11 +34,12 @@ async function updatePublicMessage(client, interaction, session) {
     
     const components = buildAddPanelComponents(client, interaction, session)
 
-    // Fetch and edit the public message using stored ID
+    // Fetch and edit the public message using stored ID. The panel may have
+    // been deleted since the session started — tolerate that silently.
     try {
-        const channel = interaction.channel
+        const channel = interaction.guild?.channels.cache.get(session.channelId) || interaction.channel
         if (channel) {
-            const publicMessage = await channel.messages.fetch(session.publicMessageId)
+            const publicMessage = await channel.messages.fetch(session.publicMessageId).catch(() => null)
             if (publicMessage) {
                 await publicMessage.edit({
                     content: session.messageContent || null,

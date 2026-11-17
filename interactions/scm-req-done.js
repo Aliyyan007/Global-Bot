@@ -35,17 +35,17 @@ module.exports = {
         embeds.push(configEmbed)
         const panelComponents = buildAddPanelComponents(client, interaction, session)
 
-        // Update the public message
+        // Update the public message — tolerate a deleted/stale panel message
         try {
-            const channel = interaction.channel
+            const channel = interaction.guild?.channels.cache.get(session.channelId) || interaction.channel
             if (channel && session.publicMessageId) {
-                const publicMessage = await channel.messages.fetch(session.publicMessageId)
+                const publicMessage = await channel.messages.fetch(session.publicMessageId).catch(() => null)
                 if (publicMessage) {
                     await publicMessage.edit({
                         content: session.messageContent || null,
                         embeds: embeds,
                         components: panelComponents
-                    })
+                    }).catch(() => null)
                 }
             }
 
@@ -59,7 +59,7 @@ module.exports = {
             await interaction.update({
                 content: `${client.config.emojis.YES} Requirements saved! The panel will update on next interaction.`,
                 components: []
-            })
+            }).catch(() => null)
         }
     }
 }

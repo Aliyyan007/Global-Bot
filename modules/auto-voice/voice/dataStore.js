@@ -49,7 +49,20 @@ const SAVE_DEBOUNCE_MS = 1000; // Save at most once per second
 const MONGO_DOC_ID = 'voice_data';
 let VoiceDataModel = null;
 let mongoReady = false;
+let mongoHydrated = false;
 let initPromise = null;
+
+/**
+ * Does this snapshot contain any real config beyond the empty defaults?
+ */
+function hasMeaningfulData(d) {
+  return d && typeof d === 'object' && Object.keys(d).some(k => {
+    const v = d[k];
+    if (v == null) return false;
+    if (typeof v === 'object') return Object.keys(v).length > 0;
+    return true;
+  });
+}
 
 function getVoiceDataModel() {
   if (VoiceDataModel) return VoiceDataModel;
@@ -86,6 +99,20 @@ async function writeToMongo(dataToSave) {
   const Model = mongoReady && getVoiceDataModel();
   if (!Model) return;
   try {
+    // If the remote doc was never read (initialize() ran before Mongo
+    // connected), a first write from an empty local cache would clobber
+    // the populated remote doc. Check once before the first write and
+    // hydrate from the remote instead when it has the real data. A failed
+    // read propagates to the outer catch so the check retries next write.
+    if (!mongoHydrated) {
+      const doc = await Model.findById(MONGO_DOC_ID).lean();
+      mongoHydrated = true;
+      if (doc?.data && hasMeaningfulData(doc.data) && !hasMeaningfulData(dataToSave)) {
+        dataCache = { ...DEFAULT_DATA, ...convertIdsToStrings(doc.data) };
+        try { writeDataAtomic(convertIdsToStrings(dataCache)); } catch {}
+        return;
+      }
+    }
     await Model.findByIdAndUpdate(
       MONGO_DOC_ID,
       { data: dataToSave, updatedAt: new Date() },
@@ -101,6 +128,18 @@ async function writeToMongo(dataToSave) {
  * stores in sync. Must run before the bot starts serving voice events /
  * restart reconciliation so the configured generator channel is known.
  */
+/**
+ * If Mongo wasn't reachable during hydration, re-run initialize() the moment
+ * the connection comes up — until then writeToMongo's mongoHydrated guard
+ * keeps saves from clobbering a populated remote doc.
+ */
+function scheduleRetryOnConnect() {
+  if (mongoHydrated) return;
+  mongoose.connection.once('connected', () => {
+    initPromise = initialize().catch(e => console.error('[Auto Voice] Late Mongo hydration failed:', e.message));
+  });
+}
+
 async function initialize() {
   try {
     const fileData = (() => {
@@ -121,28 +160,37 @@ async function initialize() {
     if (Model) {
       doc = await Model.findById(MONGO_DOC_ID).lean().catch(() => null);
       mongoReady = true;
+      mongoHydrated = true;
     }
 
     const docTime = doc?.updatedAt ? new Date(doc.updatedAt).getTime() : 0;
+    let source = 'empty';
     if (doc?.data && docTime >= (fileData?.mtime || 0)) {
       dataCache = { ...DEFAULT_DATA, ...convertIdsToStrings(doc.data) };
+      source = 'mongo';
     } else if (fileData?.parsed) {
       dataCache = { ...DEFAULT_DATA, ...convertIdsToStrings(fileData.parsed) };
+      source = 'file';
     } else if (doc?.data) {
       dataCache = { ...DEFAULT_DATA, ...convertIdsToStrings(doc.data) };
+      source = 'mongo';
     } else {
       dataCache = { ...DEFAULT_DATA };
     }
+
+    console.log(`[Auto Voice] Data store hydrated from ${source} (${Object.keys(dataCache.voice_settings || {}).length} guild config(s))`);
 
     // Re-sync both stores so the loser converges on the winner
     const snapshot = convertIdsToStrings(dataCache);
     try { writeDataAtomic(snapshot); } catch {}
     if (mongoReady) writeToMongo(snapshot);
+    scheduleRetryOnConnect();
     return true;
   } catch (error) {
     console.error('[Auto Voice] Mongo data-store init failed, falling back to local file:', error.message);
     mongoReady = false;
     loadVoiceData();
+    scheduleRetryOnConnect();
     return false;
   }
 }

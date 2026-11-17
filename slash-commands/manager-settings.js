@@ -99,8 +99,8 @@ module.exports = {
         const title = menu_options.find(e => { return e.value == `${interaction.isChatInputCommand() ? "general" : interaction.isStringSelectMenu() && interaction.customId === `cmd{manager-settings}usr{${interaction.user.id}}` ? interaction.values[0] : interaction.customId.includes("language") ? `general` : TitleRegexp.exec(interaction.customId)?.[1]}` })
         if (title) title.default = true
         const first_row = new ActionRowBuilder().addComponents([new StringSelectMenuBuilder().setCustomId(`cmd{manager-settings}usr{${interaction.user.id}}`).addOptions(menu_options)])
-        if (interaction.isStringSelectMenu() || interaction.isButton() || interaction.isModalSubmit()) {
-            if (interaction.values?.[0].includes("customization") || interaction.customId.includes("customization")) {
+        if (interaction.isAnySelectMenu() || interaction.isButton() || interaction.isModalSubmit()) {
+            if ((interaction.values?.[0] || "").includes("customization") || interaction.customId.includes("customization")) {
                 if (interaction.isStringSelectMenu()) {
                     if (interaction.values[0] === "avatar") {
                         if (!interaction.channel.permissionsFor(interaction.guild.members.me).has("ViewChannel") || !interaction.channel.permissionsFor(interaction.guild.members.me).has("ReadMessageHistory")) {
@@ -273,7 +273,7 @@ module.exports = {
                 const components = [first_row, ...payload.components]
                 return interaction.editReply({ embeds: payload.embeds, components: components.slice(0, 5) })
             }
-            if (interaction.values?.[0].includes("customRoles") || interaction.customId.includes("customRoles")) {
+            if ((interaction.values?.[0] || "").includes("customRoles") || interaction.customId.includes("customRoles")) {
                 if (interaction.isStringSelectMenu()) {
                     if (interaction.values[0] === "customRoleModeration") {
                         const components = JSON.parse(JSON.stringify(interaction.message.components))
@@ -991,7 +991,7 @@ module.exports = {
                 if (interaction.replied || interaction.deferred) return interaction.editReply({ embeds: [embed], components: [first_row, row, row2] })
                 else return interaction.update({ embeds: [embed], components: [first_row, row, row2] })
             }
-            if (interaction.values?.[0].includes("startKit") || interaction.customId.includes("startKit")) {
+            if ((interaction.values?.[0] || "").includes("startKit") || interaction.customId.includes("startKit")) {
                 embed.setTitle(title.label)
                 if (interaction.customId.includes("currency")) {
                     const modal = new ModalBuilder()
@@ -1194,7 +1194,7 @@ module.exports = {
                 if (interaction.replied || interaction.deferred) return interaction.editReply({ embeds: [embed], components: [first_row, new ActionRowBuilder().addComponents([currency_btn, xp_btn, rp_btn, items_btn]), new ActionRowBuilder().addComponents([turn_btn])] })
                 return interaction.update({ embeds: [embed], components: [first_row, new ActionRowBuilder().addComponents([currency_btn, xp_btn, rp_btn, items_btn]), new ActionRowBuilder().addComponents([turn_btn])] })
             }
-            if (interaction.values?.[0].includes("fishing") || interaction.customId.includes("fishing")) {
+            if ((interaction.values?.[0] || "").includes("fishing") || interaction.customId.includes("fishing")) {
                 embed.setTitle(title.label)
                 if (interaction.customId.includes("edit")) {
                     const modal = new ModalBuilder()
@@ -1294,7 +1294,7 @@ module.exports = {
                 if (interaction.replied || interaction.deferred) return interaction.editReply({ content: " ", embeds: [embed], components: [first_row, second_row] })
                 return interaction.update({ content: " ", embeds: [embed], components: [first_row, second_row] })
             }
-            if (interaction.values?.[0].includes("mining") || interaction.customId.includes("mining")) {
+            if ((interaction.values?.[0] || "").includes("mining") || interaction.customId.includes("mining")) {
                 embed.setTitle(title.label)
                 if (interaction.customId.includes("edit")) {
                     const modal = new ModalBuilder()
@@ -1394,7 +1394,7 @@ module.exports = {
                 if (interaction.replied || interaction.deferred) return interaction.editReply({ content: " ", embeds: [embed], components: [first_row, second_row] })
                 return interaction.update({ content: " ", embeds: [embed], components: [first_row, second_row] })
             }
-            if (interaction.values?.[0].includes("seasonLevels") || interaction.customId.includes("seasonLevels")) {
+            if ((interaction.values?.[0] || "").includes("seasonLevels") || interaction.customId.includes("seasonLevels")) {
                 embed.setTitle(`${title.label}`)
                 if (interaction.customId.includes("new season")) {
                     await Promise.all(client.cache.profiles.filter(e => e.guildID === interaction.guildId && (e.seasonLevel !== 1 || e.seasonXp !== 0 || e.seasonTotalXp !== 0)).map(async profile => {
@@ -1535,7 +1535,7 @@ module.exports = {
                 if (interaction.replied || interaction.deferred) return interaction.editReply({ embeds: [embed], components: [first_row, row] })
                 else return interaction.update({ embeds: [embed], components: [first_row, row] })
             }
-            if (interaction.values?.[0].includes("marketSettings") || interaction.customId.includes("marketSettings")) {
+            if ((interaction.values?.[0] || "").includes("marketSettings") || interaction.customId.includes("marketSettings")) {
                 embed.setTitle(`${title.label}`)
                 if (interaction.customId.includes("channel")) {
                     const components = JSON.parse(JSON.stringify(interaction.message.components))
@@ -1640,7 +1640,7 @@ module.exports = {
                 if (interaction.replied || interaction.deferred) return interaction.editReply({ embeds: [embed], components: [first_row, row] })
                 else return interaction.update({ embeds: [embed], components: [first_row, row] })
             }
-            if (interaction.values?.[0].includes("boosters") || interaction.customId.includes("boosters")) {
+            if ((interaction.values?.[0] || "").includes("boosters") || interaction.customId.includes("boosters")) {
                 embed.setTitle(`${title.label}`)
                 if (interaction.customId.includes("edit")) {
                     const value = interaction.values[0]
@@ -1738,7 +1738,7 @@ module.exports = {
                 const third_row = new ActionRowBuilder().addComponents([new ButtonBuilder().setCustomId(`cmd{manager-settings} title{boosters} mode usr{${interaction.user.id}}`).setLabel(`${client.language({ textId: "Toggle booster stacking mode", guildId: interaction.guildId, locale: interaction.locale })}`).setStyle(ButtonStyle.Primary)])
                 return interaction.update({ embeds: [embed], components: [first_row, second_row, third_row]})
             }
-            if (interaction.values?.[0].includes("auctions") || interaction.customId.includes("auctions")) {
+            if ((interaction.values?.[0] || "").includes("auctions") || interaction.customId.includes("auctions")) {
                 embed.setTitle(`${title.label}`)
                 if (interaction.isStringSelectMenu()) {
                     if (interaction.values[0] === "channel") {
@@ -1850,7 +1850,7 @@ module.exports = {
                 if (interaction.replied || interaction.deferred) return interaction.editReply({ embeds: [embed], components: [first_row, second_row]})
                 else return interaction.update({ embeds: [embed], components: [first_row, second_row]})
             }
-            if (interaction.values?.[0].includes("userControlPanel") || interaction.customId.includes("userControlPanel")) {
+            if ((interaction.values?.[0] || "").includes("userControlPanel") || interaction.customId.includes("userControlPanel")) {
                 // CRITICAL FIX: Refresh settings from database to get latest data
                 const freshSettings = await client.functions.fetchSettings(client, interaction.guildId)
                 
@@ -2417,7 +2417,7 @@ module.exports = {
                 if (interaction.replied || interaction.deferred) return interaction.editReply({ embeds: [embed], components: [first_row, second_row, third_row]})
                 else return interaction.update({ embeds: [embed], components: [first_row, second_row, third_row]})
             }
-            if (interaction.values?.[0].includes("currency") || interaction.customId.includes("currency")) {
+            if ((interaction.values?.[0] || "").includes("currency") || interaction.customId.includes("currency")) {
                 embed.setTitle(title.label)
                 if (interaction.isStringSelectMenu()) {
                     if (interaction.values[0] === "currency_name_description") {
@@ -2602,7 +2602,7 @@ module.exports = {
             }
             if ((interaction.replied || interaction.deferred)) await interaction.editReply({ components: [new ActionRowBuilder().addComponents(new ButtonBuilder().setEmoji("⏳").setStyle(ButtonStyle.Secondary).setCustomId(`0`).setDisabled(true))]})
             else await interaction.update({ components: [new ActionRowBuilder().addComponents(new ButtonBuilder().setEmoji("⏳").setStyle(ButtonStyle.Secondary).setCustomId(`0`).setDisabled(true))]})
-            if (interaction.values?.[0].includes("shop") || interaction.customId.includes("shop")) {
+            if ((interaction.values?.[0] || "").includes("shop") || interaction.customId.includes("shop")) {
                 const types = ["shopName", "shopMessages", "shopThumbnail"]
                 if (types.includes(interaction.values[0])) {
                     if (interaction.values[0] == "shopName") {
@@ -2671,7 +2671,7 @@ module.exports = {
                 const second_row = new ActionRowBuilder().addComponents([new StringSelectMenuBuilder().setCustomId(`cmd{manager-settings} title{shop} usr{${interaction.user.id}}`).addOptions(options).setPlaceholder(`${client.language({ textId: "Select to change", guildId: interaction.guildId, locale: interaction.locale })}`)])
                 return interaction.editReply({ content: " ", embeds: [embed], components: [first_row, second_row] })
             }
-            if (interaction.values?.[0].includes("channels") || interaction.customId.includes("channels")) {
+            if ((interaction.values?.[0] || "").includes("channels") || interaction.customId.includes("channels")) {
                 embed.setTitle(title.label)
                 const types = ["wipe", "achievementsNotificationChannelId", "itemsNotificationChannelId", "levelNotificationChannelId", "mutedChannels", "botChannelId", "generalChannelId"]
                 if (types.includes(interaction.values[0])) {
@@ -2790,7 +2790,7 @@ module.exports = {
                 const second_row = new ActionRowBuilder().addComponents([new StringSelectMenuBuilder().setCustomId(`cmd{manager-settings} title{channels} usr{${interaction.user.id}}`).addOptions(channels_options).setPlaceholder(`${client.language({ textId: "Select to change", guildId: interaction.guildId, locale: interaction.locale })}`)])
                 return interaction.editReply({ content: " ", embeds: [embed], components: [first_row, second_row] })
             }   
-            if (interaction.values?.[0].includes("roles") || interaction.customId.includes("roles")) {
+            if ((interaction.values?.[0] || "").includes("roles") || interaction.customId.includes("roles")) {
                 embed.setTitle(title.label)
                 const types = ["mutedRoles", "rolesToNewMember", "wormholesNotification", "bumpNotification", "mutedWipe", "rolesTNMWipe"]
                 if (types.includes(interaction.values[0])) {
@@ -2896,7 +2896,7 @@ module.exports = {
                 const second_row = new ActionRowBuilder().addComponents([new StringSelectMenuBuilder().setCustomId(`cmd{manager-settings} title{roles} usr{${interaction.user.id}}`).addOptions(roles_options).setPlaceholder(`${client.language({ textId: "Select to change", guildId: interaction.guildId, locale: interaction.locale })}`)])
                 return interaction.editReply({ content: " ", embeds: [embed], components: [first_row, second_row] })
             }
-            if (interaction.values?.[0].includes("dailyRewards") || interaction.customId.includes("dailyRewards")) {
+            if ((interaction.values?.[0] || "").includes("dailyRewards") || interaction.customId.includes("dailyRewards")) {
                 embed.setTitle(title.label)
                 embed.setColor(interaction.member.displayHexColor)
                 embed.setThumbnail(`https://emojipedia-us.s3.amazonaws.com/source/skype/289/wrapped-gift_1f381.png`)
@@ -3072,7 +3072,7 @@ module.exports = {
                 embed.setFooter({ text: `${client.language({ textId: "Current max. bonus", guildId: interaction.guildId, locale: interaction.locale })}: ${!settings.weekMaxBonus ? `${client.language({ textId: "UNLIMITED", guildId: interaction.guildId, locale: interaction.locale })}` : "x"+ settings.weekMaxBonus }` })
                 return interaction.editReply({ content: " ", embeds: [embed], components: [first_row, second_row, third_row] })
             }
-            if (interaction.values?.[0].includes("levelRoles") || interaction.customId.includes("levelRoles")) {
+            if ((interaction.values?.[0] || "").includes("levelRoles") || interaction.customId.includes("levelRoles")) {
                 embed.setTitle(title.label)
                 if (interaction.customId.includes("autosetup")) {
                     const AUTO_LEVELS = [1, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 60, 70, 80, 100]
@@ -3190,7 +3190,7 @@ module.exports = {
                 if (interaction.replied || interaction.deferred) return interaction.editReply({ content: " ", embeds: [embed], components: [first_row, second_row] })
                 return interaction.update({ content: " ", embeds: [embed], components: [first_row, second_row] })
             }
-            if (interaction.values?.[0].includes("topLeaders") || interaction.customId.includes("topLeaders")) {
+            if ((interaction.values?.[0] || "").includes("topLeaders") || interaction.customId.includes("topLeaders")) {
                 embed.setTitle(`${title.label}`)
                 const types = ["daily", "weekly", "monthly", "yearly", "channel"]
                 if (types.includes(interaction.values[0])) {
@@ -3233,7 +3233,7 @@ module.exports = {
                 const second_row = new ActionRowBuilder().addComponents([new StringSelectMenuBuilder().setCustomId(`cmd{manager-settings} title{topLeaders} usr{${interaction.user.id}}`).addOptions(topLeaders_options).setPlaceholder(`${client.language({ textId: "Select to change", guildId: interaction.guildId, locale: interaction.locale })}`)])
                 return interaction.editReply({ content: " ", embeds: [embed], components: [first_row, second_row] })
             }
-            if (interaction.values?.[0].includes("activities") || interaction.customId.includes("activities")) {
+            if ((interaction.values?.[0] || "").includes("activities") || interaction.customId.includes("activities")) {
                 embed.setTitle(title.label)
                 const messageTypes = [`xpForMessage`, `curForMessage`, `rpForMessage`]
                 const types = [ `xpForMessage`, `curForMessage`, "rpForMessage", 
@@ -3374,7 +3374,7 @@ module.exports = {
                     await settings.save()
                     await recomputeLevels()
                 }
-                if (interaction.values?.[0].includes("levelfactor") || interaction.customId.includes("levelfactor")) {
+                if ((interaction.values?.[0] || "").includes("levelfactor") || interaction.customId.includes("levelfactor")) {
                     if (client.levelFactorCooldowns[interaction.guildId] > new Date()) {
                         await interaction.editReply({ embeds: interaction.message.embeds, components: components1 })
                         return interaction.followUp({ content: `${client.language({ textId: "Wait for cooldown", guildId: interaction.guildId, locale: interaction.locale })}: ${Math.ceil((client.levelFactorCooldowns[interaction.guildId] - new Date())/1000/60)} ${client.language({ textId: "minutes", guildId: interaction.guildId, locale: interaction.locale })}.`, flags: ["Ephemeral"] })
@@ -3492,7 +3492,7 @@ module.exports = {
                 }
                 return interaction.update({ content: " ", embeds: [embed], components: components })
             }
-            if (interaction.values?.[0].includes("logs") || interaction.customId.includes("logs")) {
+            if ((interaction.values?.[0] || "").includes("logs") || interaction.customId.includes("logs")) {
                 embed.setTitle(title.label)
                 if (interaction.customId.includes("editPreferences")) {
                     for (const value of interaction.values) {
@@ -3896,7 +3896,10 @@ module.exports = {
         embed.setDescription(description.join("\n"))
         embed.setThumbnail(interaction.guild.iconURL())
         embed.setImage(interaction.guild.bannerURL({ format: "png", size: 4096 }))
-        return interaction.editReply({ embeds: [embed], components: [lang_row, first_row] })
+        const homePayload = { embeds: [embed], components: [lang_row, first_row] }
+        if (interaction.replied || interaction.deferred) return interaction.editReply(homePayload)
+        if (typeof interaction.update === 'function') return interaction.update(homePayload).catch(() => interaction.reply(homePayload).catch(() => null))
+        return interaction.editReply(homePayload)
     }
 }
 async function waitingForAmount(client, interaction, filter, value, min) {
