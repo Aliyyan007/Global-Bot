@@ -13,7 +13,7 @@
  */
 const LANGUAGE_KEYS = {
   // Main menu
-  NOTIFICATION_CHANNELS_TITLE: 'Level Up, Greet, Birthday, Daily Reward… Channel',
+  NOTIFICATION_CHANNELS_TITLE: 'Greet, Birthday, Daily Reward… Channel',
   
   // Setup actions
   SETUP_LEVEL_UP: 'Setup Level Up Channel',

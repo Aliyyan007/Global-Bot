@@ -396,7 +396,8 @@ async function handleViewAction(client, interaction, targetCommand, commandName,
         }
     }
 
-    // Note: Sticky message repositioning is handled by messageCreate.js event
+    // Note: Sticky message repositioning is handled by the stickyCommands
+    // MessageCreate listener (events/stickyCommands.js -> handler/stickyReposition.js)
     // when the bot's reply is sent to the channel. No need to reposition here.
 }
 

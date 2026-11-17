@@ -162,6 +162,9 @@ async function initializeShard(client) {
             await cleanupEmptyRestrictionRoles(client)
         }, 6 * 60 * 60 * 1000) // 6 hours
         console.log('[Safe-Moderation] ✅ Periodic cleanup scheduled (every 6 hours)')
+
+        // Daily birthday notifications (configured via notification channels)
+        require('../modules/notification-channels/birthdayScheduler').start(client)
         
         // Initialize Guild Command Manager
         const guildCommandManager = new GuildCommandManager(client)

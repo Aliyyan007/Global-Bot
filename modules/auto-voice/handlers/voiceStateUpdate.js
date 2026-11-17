@@ -259,6 +259,7 @@ async function createTempChannel(member, guild, settings) {
     
     dataStore.setTempChannel(tempChannel.id, {
       owner_id: member.id,
+      guild_id: guild.id,
       created_at: new Date().toISOString(),
       text_channel_id: textChannelId
     });

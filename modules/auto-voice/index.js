@@ -19,21 +19,48 @@ let client = null;
  */
 async function initialize(discordClient) {
   client = discordClient;
-  
-  // Initialize voice preferences database
+
+  // Initialize voice preferences database (no Discord access needed)
   await voicePreferences.initialize();
-  
-  // Reconcile persisted state with Discord: warn on stale generator
-  // channels and drop temp-channel records whose channel is gone.
+
+  // Discord-touching reconciliation must wait until the client is
+  // authenticated — initialize() runs before client.login(), so fetching
+  // here would fail and wipe every persisted temp-channel record.
+  if (client.isReady()) {
+    await reconcile(client);
+  } else {
+    client.once('ready', () => reconcile(client).catch(e => console.error('[Auto Voice] Reconciliation failed:', e)));
+  }
+
+  console.log('[Auto Voice] System initialized');
+}
+
+/**
+ * Reconcile persisted temp-channel state with Discord after login.
+ * - Never touches the configured "Join to Create" generator channel or categories.
+ * - Drops records whose voice channel is gone; also removes its linked
+ *   text/waiting-room channels if they still exist.
+ * - Deletes temp voice channels left empty while the bot was offline.
+ * - Re-adopts live, unmanaged channels inside the temp category so the
+ *   normal empty-channel cleanup keeps working for them.
+ */
+async function reconcile(discordClient) {
   try {
     const data = dataStore.loadVoiceData();
+    const voiceSettings = data.voice_settings || {};
     let pruned = 0;
-    for (const [guildId, settings] of Object.entries(data.voice_settings || {})) {
-      const guild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+    let deleted = 0;
+    let adopted = 0;
+
+    // Generator/category existence warnings — read-only, never modifies them
+    for (const [guildId, settings] of Object.entries(voiceSettings)) {
+      const guild = discordClient.guilds.cache.get(guildId) || await discordClient.guilds.fetch(guildId).catch(() => null);
       if (!guild) continue;
-      const joinChannel = await guild.channels.fetch(settings.voice_channel_id).catch(() => null);
-      if (!joinChannel) {
-        console.warn(`[Auto Voice] Guild ${guildId}: configured "Join to Create" channel ${settings.voice_channel_id} no longer exists — system inactive until reconfigured (/auto-voice-manager)`);
+      if (settings.voice_channel_id) {
+        const joinChannel = await guild.channels.fetch(settings.voice_channel_id).catch(() => null);
+        if (!joinChannel) {
+          console.warn(`[Auto Voice] Guild ${guildId}: configured "Join to Create" channel ${settings.voice_channel_id} no longer exists — system inactive until reconfigured (/auto-voice-manager)`);
+        }
       }
       if (settings.temp_voice_category_id) {
         const cat = await guild.channels.fetch(settings.temp_voice_category_id).catch(() => null);
@@ -42,23 +69,101 @@ async function initialize(discordClient) {
         }
       }
     }
-    for (const [channelId] of Object.entries(data.temp_channels || {})) {
-      const channel = await client.channels.fetch(channelId).catch(() => null);
+
+    // Reconcile persisted temp-channel records
+    for (const [channelId, tempData] of Object.entries(data.temp_channels || {})) {
+      const channel = await discordClient.channels.fetch(channelId).catch(() => null);
+      const guild = channel?.guild
+        || (tempData?.guild_id ? (discordClient.guilds.cache.get(tempData.guild_id) || await discordClient.guilds.fetch(tempData.guild_id).catch(() => null)) : null)
+        || await resolveGuildForChannel(
+          discordClient,
+          [channelId, tempData?.text_channel_id, tempData?.waiting_room_channel_id].filter(Boolean),
+          voiceSettings
+        );
       if (!channel) {
+        // Voice channel gone — clean up lingering linked channels and the record
+        await deleteLinkedChannels(guild, tempData);
         dataStore.deleteTempChannel(channelId);
         dataStore.deleteChannelOwner(channelId);
         pruned++;
+        continue;
+      }
+      if (!guild) continue;
+      // Never treat a configured generator channel as a temp channel
+      const settings = voiceSettings[guild.id];
+      if (settings?.voice_channel_id && String(settings.voice_channel_id) === String(channelId)) {
+        dataStore.deleteTempChannel(channelId);
+        dataStore.deleteChannelOwner(channelId);
+        pruned++;
+        continue;
+      }
+      if (channel.members.size === 0) {
+        // Emptied while offline — delete as the normal flow would
+        await deleteLinkedChannels(guild, tempData);
+        await channel.delete('Temp channel empty on restart').catch(() => null);
+        dataStore.deleteTempChannel(channelId);
+        dataStore.deleteChannelOwner(channelId);
+        deleted++;
+      } else {
+        // Still occupied — keep management alive; restore owner record if lost
+        if (!dataStore.getChannelOwner(channelId) && tempData.owner_id) {
+          dataStore.setChannelOwner(channelId, tempData.owner_id);
+        }
+        adopted++;
       }
     }
-    if (pruned) {
+
+    // Orphan sweep: unmanaged channels left inside the temp category
+    for (const [guildId, settings] of Object.entries(voiceSettings)) {
+      if (!settings.temp_voice_category_id) continue;
+      const guild = discordClient.guilds.cache.get(guildId) || await discordClient.guilds.fetch(guildId).catch(() => null);
+      if (!guild) continue;
+      const tempRecords = data.temp_channels || {};
+      for (const [, ch] of guild.channels.cache) {
+        if (ch.parentId !== settings.temp_voice_category_id) continue;
+        if (ch.id === settings.voice_channel_id) continue;
+        if (tempRecords[ch.id]) continue;
+        if (ch.type !== 2) continue; // GuildVoice only
+        if (ch.members.size === 0) {
+          await ch.delete('Orphaned temp channel on restart').catch(() => null);
+          deleted++;
+        } else {
+          // Occupied channel with no record — adopt it so normal cleanup applies
+          const ownerId = ch.members.first()?.id;
+          if (ownerId) {
+            dataStore.setTempChannel(ch.id, { owner_id: ownerId, guild_id: guild.id, created_at: new Date(ch.createdTimestamp).toISOString(), text_channel_id: null });
+            dataStore.setChannelOwner(ch.id, ownerId);
+            adopted++;
+          }
+        }
+      }
+    }
+
+    if (pruned || deleted || adopted) {
       dataStore.forceSave();
-      console.log(`[Auto Voice] Pruned ${pruned} stale temp-channel record(s)`);
+      console.log(`[Auto Voice] Reconciled: ${pruned} stale record(s) pruned, ${deleted} empty channel(s) deleted, ${adopted} live channel(s) adopted`);
     }
   } catch (e) {
-    console.error('[Auto Voice] Startup reconciliation failed:', e.message);
+    console.error('[Auto Voice] Reconciliation failed:', e.message);
   }
-  
-  console.log('[Auto Voice] System initialized');
+}
+
+async function resolveGuildForChannel(discordClient, channelIds, voiceSettings) {
+  const ids = Array.isArray(channelIds) ? channelIds : [channelIds];
+  for (const [guildId] of Object.entries(voiceSettings)) {
+    const guild = discordClient.guilds.cache.get(guildId) || await discordClient.guilds.fetch(guildId).catch(() => null);
+    if (guild && ids.some(id => guild.channels.cache.has(id))) return guild;
+  }
+  return null;
+}
+
+async function deleteLinkedChannels(guild, tempData) {
+  if (!guild || !tempData) return;
+  for (const linkedId of [tempData.text_channel_id, tempData.waiting_room_channel_id]) {
+    if (!linkedId) continue;
+    const linked = await guild.channels.fetch(linkedId).catch(() => null);
+    if (linked) await linked.delete('Linked voice channel deleted').catch(() => null);
+  }
 }
 
 /**
@@ -178,6 +283,7 @@ function getClient() {
 
 module.exports = {
   initialize,
+  reconcile,
   shutdown,
   isConfigured,
   handleVoiceStateUpdate,

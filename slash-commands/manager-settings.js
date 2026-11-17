@@ -52,7 +52,7 @@ module.exports = {
             { emoji: client.config.emojis.gear, label: `${client.language({ textId: "View general information", guildId: interaction.guildId, locale: interaction.locale })}`, value: `general`, default: true },
             { emoji: client.config.emojis.brush, label: `${client.language({ textId: "Customization", guildId: interaction.guildId, locale: interaction.locale })}`, value: `customization` },
             { emoji: client.config.emojis.profile, label: `${client.language({ textId: "User Control Panel", guildId: interaction.guildId, locale: interaction.locale })}`, value: `userControlPanel` },
-            { emoji: '🔔', label: `${client.language({ textId: "Level Up, Greet, Birthday, Daily Reward… Channel", guildId: interaction.guildId, locale: interaction.locale })}`, value: `notificationChannels` },
+            { emoji: '🔔', label: `${client.language({ textId: "Greet, Birthday, Daily Reward… Channel", guildId: interaction.guildId, locale: interaction.locale })}`, value: `notificationChannels` },
             { emoji: client.config.emojis.fishing, label: `${client.language({ textId: "Fishing", guildId: interaction.guildId, locale: interaction.locale })}`, value: `fishing` },
             { emoji: client.config.emojis.mining, label: `${client.language({ textId: "Mining", guildId: interaction.guildId, locale: interaction.locale })}`, value: `mining` },
             { emoji: client.config.emojis.shop, label: `${settings.shopName ? settings.shopName.slice(0, 100) : client.language({ textId: "Shop", guildId: interaction.guildId, locale: interaction.locale }) }`, value: `shop` },
@@ -234,22 +234,21 @@ module.exports = {
                 if (interaction.isStringSelectMenu() && interaction.customId.includes("notificationChannels")) {
                     const pageMatch = /^nc_page_(.+)$/.exec(interaction.values?.[0] || "")
                     if (pageMatch) {
+                        // Acknowledge first — the config read can outrun the 3s window
+                        await interaction.deferUpdate().catch(() => null)
                         const payload = await notifPanel.renderTypePage(client, interaction, pageMatch[1])
                         if (payload) {
                             const components = [first_row, ...payload.components]
-                            return interaction.update({ embeds: payload.embeds, components: components.slice(0, 5) })
+                            return interaction.editReply({ embeds: payload.embeds, components: components.slice(0, 5) })
                         }
                     }
                 }
                 
-                // Default: overview dashboard
+                // Default: overview dashboard — ack first, config reads can be slow
+                await interaction.deferUpdate().catch(() => null)
                 const payload = await notifPanel.renderOverview(client, interaction)
                 const components = [first_row, ...payload.components]
-                if (interaction.replied || interaction.deferred) {
-                    return interaction.editReply({ embeds: payload.embeds, components: components.slice(0, 5) })
-                } else {
-                    return interaction.update({ embeds: payload.embeds, components: components.slice(0, 5) })
-                }
+                return interaction.editReply({ embeds: payload.embeds, components: components.slice(0, 5) })
             }
             if (interaction.values?.[0].includes("customRoles") || interaction.customId.includes("customRoles")) {
                 if (interaction.isStringSelectMenu()) {
@@ -3300,17 +3299,21 @@ module.exports = {
                     if (!Number.isFinite(amount) || amount < 0 || amount > 1000000) {
                         return submitted.reply({ content: `${client.config.emojis.NO} ${client.language({ textId: "Invalid number. Must be 0-1,000,000", guildId: interaction.guildId, locale: interaction.locale })}`, flags: ["Ephemeral"] })
                     }
-                    settings[selectedKey] = amount
+                    let cooldownValue
                     if (isMessageType) {
                         const cd = submitted.fields.getTextInputValue("cooldown")?.trim()
                         if (cd !== "" && cd !== undefined) {
-                            const cdNum = Number(cd)
-                            if (!Number.isFinite(cdNum) || cdNum < 0 || cdNum > 3600) {
+                            cooldownValue = Number(cd)
+                            if (!Number.isFinite(cooldownValue) || cooldownValue < 0 || cooldownValue > 3600) {
                                 return submitted.reply({ content: `${client.config.emojis.NO} ${client.language({ textId: "Invalid cooldown. Must be 0-3600 seconds", guildId: interaction.guildId, locale: interaction.locale })}`, flags: ["Ephemeral"] })
                             }
-                            settings.messageCooldown = cdNum
                         }
                     }
+                    // Acknowledge the modal first — the one-shot update() callback
+                    // can expire while save() runs, which left the panel stuck.
+                    await submitted.deferUpdate().catch(() => null)
+                    settings[selectedKey] = amount
+                    if (isMessageType && cooldownValue !== undefined) settings.messageCooldown = cooldownValue
                     await settings.save()
                     interaction = submitted
                 }
@@ -3319,16 +3322,16 @@ module.exports = {
                     settings.xpForMessage = 15
                     settings.curForMessage = 3
                     settings.rpForMessage = 0
-                    settings.xpForVoice = 10
-                    settings.curForVoice = 3
+                    settings.xpForVoice = 5
+                    settings.curForVoice = 2
                     settings.rpForVoice = 0
                     settings.xpForInvite = 100
                     settings.curForInvite = 0
                     settings.rpForInvite = 10
                     settings.xpForBump = 50
                     settings.curForBump = 10
-                    settings.rpForBump = 20
-                    settings.xpForLike = 50
+                    settings.rpForBump = 10
+                    settings.xpForLike = 25
                     settings.curForLike = 0
                     settings.rpForLike = 0
                     settings.xpForFirstFoundItem = 50
@@ -3370,7 +3373,8 @@ module.exports = {
                     client.levelFactorCooldowns[interaction.guildId] = new Date(date.setMinutes(date.getMinutes() + 30))
                     settings.levelfactor = factor
                     await settings.save()
-                    await submitted.update({ embeds: interaction.message.embeds, components: [new ActionRowBuilder().addComponents(new ButtonBuilder().setEmoji("⏳").setStyle(ButtonStyle.Secondary).setCustomId(`0`).setDisabled(true))] })
+                    await submitted.deferUpdate().catch(() => null)
+                    await submitted.editReply({ embeds: interaction.message.embeds, components: [new ActionRowBuilder().addComponents(new ButtonBuilder().setEmoji("⏳").setStyle(ButtonStyle.Secondary).setCustomId(`0`).setDisabled(true))] }).catch(() => null)
                     await recomputeLevels()
                     interaction = submitted
                 }

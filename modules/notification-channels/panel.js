@@ -26,8 +26,9 @@ const {
 } = require('discord.js')
 const { getChannelConfig, saveChannelConfig, removeChannelConfig } = require('./settingsSchemaManager')
 
+// Note: level_up is intentionally absent — the level-up notification channel
+// has a dedicated picker under the "Channels" section of /manager-settings.
 const TYPES = {
-    level_up: { emoji: '📈', label: 'Level Up', color: 0xFFD700, thumbnail: true, memberCount: false, mentions: false },
     birthday: { emoji: '🎂', label: 'Birthday', color: 0xFF69B4, thumbnail: true, memberCount: false, mentions: false },
     welcome: { emoji: '👋', label: 'Welcome', color: 0x57F287, thumbnail: true, memberCount: true, mentions: false },
     goodbye: { emoji: '🚪', label: 'Goodbye', color: 0xED4245, thumbnail: true, memberCount: true, mentions: true },
@@ -161,7 +162,12 @@ async function renderTypePage(client, interaction, type) {
             .setCustomId(`cmd{manager-settings}title{notificationChannels}${nc('setchannel', type)}usr{${interaction.user.id}}`)
             .setPlaceholder(`📢 ${L('Select notification channel')}`)
             .setChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
-        if (config.channelId) channelSelect.setDefaultChannels(config.channelId)
+        if (config.channelId) {
+            // Deleted channels make Discord reject the whole payload
+            const existing = interaction.guild.channels.cache.get(config.channelId)
+                || await interaction.guild.channels.fetch(config.channelId).catch(() => null)
+            if (existing) channelSelect.setDefaultChannels(config.channelId)
+        }
         rows.push(new ActionRowBuilder().addComponents(channelSelect))
     }
 
@@ -198,7 +204,8 @@ async function renderTypePage(client, interaction, type) {
             .setMinValues(0)
             .setMaxValues(5)
         if (config.mentions?.length) {
-            const valid = config.mentions.filter(id => id !== interaction.guildId).slice(0, 5)
+            const existing = interaction.guild.roles.cache
+            const valid = config.mentions.filter(id => id !== interaction.guildId && existing.has(id)).slice(0, 5)
             if (valid.length) mentionSelect.setDefaultRoles(valid)
         }
         rows.push(new ActionRowBuilder().addComponents(mentionSelect))
@@ -225,16 +232,31 @@ async function handleAction(client, interaction, action, firstRow) {
     const [verb, type] = action.split(':')
     const t = TYPES[type]
     const guildId = interaction.guildId
+
+    // Acknowledge the component up-front (modal actions need the raw
+    // interaction, so they defer after the modal is submitted instead).
+    // Without this, a slow DB read could outrun the 3s interaction window
+    // and Discord shows "The application did not respond".
+    if (verb !== 'custommsg') {
+        await interaction.deferUpdate().catch(() => null)
+    }
+
+    const respond = (payload) => {
+        if (!payload) return
+        const body = { embeds: payload.embeds, components: [firstRow, ...payload.components].slice(0, 5) }
+        if (interaction.replied || interaction.deferred) return interaction.editReply(body).catch(() => {})
+        return interaction.update(body).catch(() => {})
+    }
+
     if (!t && verb !== 'back') {
         const payload = await renderOverview(client, interaction).catch(() => null)
-        if (!payload) return
-        return interaction.update({ embeds: payload.embeds, components: [firstRow, ...payload.components].slice(0, 5) }).catch(() => {})
+        return respond(payload)
     }
 
     switch (verb) {
         case 'back': {
             const payload = await renderOverview(client, interaction)
-            return interaction.update({ embeds: payload.embeds, components: [firstRow, ...payload.components] })
+            return respond(payload)
         }
 
         case 'toggle': {
@@ -242,7 +264,7 @@ async function handleAction(client, interaction, action, firstRow) {
             if (!config.enabled && !config.channelId) {
                 // Must pick a channel before enabling — flip the channel select to prompt
                 const payload = await renderTypePage(client, interaction, type)
-                await interaction.update({ embeds: payload.embeds, components: [firstRow, ...payload.components].slice(0, 5) })
+                await respond(payload)
                 return interaction.followUp({
                     content: `⚠️ ${lang(client, interaction, 'Select a channel first, then enable')}`,
                     flags: ['Ephemeral']
@@ -250,7 +272,7 @@ async function handleAction(client, interaction, action, firstRow) {
             }
             await updateConfig(guildId, type, { enabled: !config.enabled })
             const payload = await renderTypePage(client, interaction, type)
-            return interaction.update({ embeds: payload.embeds, components: [firstRow, ...payload.components].slice(0, 5) })
+            return respond(payload)
         }
 
         case 'setchannel': {
@@ -262,7 +284,7 @@ async function handleAction(client, interaction, action, firstRow) {
             if (!existing.enabled) patch.enabled = true
             await updateConfig(guildId, type, patch)
             const payload = await renderTypePage(client, interaction, type)
-            return interaction.update({ embeds: payload.embeds, components: [firstRow, ...payload.components].slice(0, 5) })
+            return respond(payload)
         }
 
         case 'option': {
@@ -280,14 +302,14 @@ async function handleAction(client, interaction, action, firstRow) {
             else break
             await updateConfig(guildId, type, patch)
             const payload = await renderTypePage(client, interaction, type)
-            return interaction.update({ embeds: payload.embeds, components: [firstRow, ...payload.components].slice(0, 5) })
+            return respond(payload)
         }
 
         case 'mentions': {
             const roleIds = (interaction.values || []).slice(0, 5)
             await updateConfig(guildId, type, { mentions: roleIds })
             const payload = await renderTypePage(client, interaction, type)
-            return interaction.update({ embeds: payload.embeds, components: [firstRow, ...payload.components].slice(0, 5) })
+            return respond(payload)
         }
 
         case 'custommsg': {
@@ -327,16 +349,17 @@ async function handleAction(client, interaction, action, firstRow) {
                 color: Number.isNaN(colorNum) ? undefined : colorNum,
                 image: args.image ? { url: args.image } : undefined
             }] : undefined
+            await submitted.deferUpdate().catch(() => null)
             await updateConfig(guildId, type, {
                 messageType: 'custom',
                 customMessage: { content: args.content || undefined, embeds: embedData }
             })
             const payload = await renderTypePage(client, submitted, type)
-            return submitted.update({ embeds: payload.embeds, components: [firstRow, ...payload.components].slice(0, 5) })
+            return submitted.editReply({ embeds: payload.embeds, components: [firstRow, ...payload.components].slice(0, 5) })
         }
 
         case 'daily_setup': {
-            await interaction.update({ components: [] }).catch(() => {})
+            await interaction.editReply({ components: [] }).catch(() => {})
             try {
                 const dailyRewardManager = require('./dailyRewardManager')
                 const channel = await dailyRewardManager.createChannel(interaction, guildId)
@@ -362,7 +385,7 @@ async function handleAction(client, interaction, action, firstRow) {
         case 'daily_remove': {
             await removeChannelConfig(guildId, type).catch(() => {})
             const payload = await renderTypePage(client, interaction, type)
-            return interaction.update({ embeds: payload.embeds, components: [firstRow, ...payload.components].slice(0, 5) })
+            return respond(payload)
         }
     }
 

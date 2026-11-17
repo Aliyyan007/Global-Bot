@@ -1,5 +1,37 @@
 const { ApplicationCommandOptionType, Collection } = require("discord.js")
 const { AchievementType } = require("../enums")
+const USER_OPTION = {
+    name: 'user',
+    nameLocalizations: {
+        'ru': `user`,
+        'uk': `user`,
+        'es-ES': `usuario`
+    },
+    description: 'Target user',
+    descriptionLocalizations: {
+        'ru': `Целевой пользователь`,
+        'uk': `Цільовий користувач`,
+        'es-ES': `Usuario objetivo`
+    },
+    type: ApplicationCommandOptionType.User,
+    required: false
+}
+const ALL_USERS_OPTION = {
+    name: 'all_users',
+    nameLocalizations: {
+        'ru': `all_users`,
+        'uk': `all_users`,
+        'es-ES': `todos`
+    },
+    description: 'Apply to all users in the server',
+    descriptionLocalizations: {
+        'ru': `Применить ко всем пользователям сервера`,
+        'uk': `Застосувати до всіх користувачів сервера`,
+        'es-ES': `Aplicar a todos los usuarios del servidor`
+    },
+    type: ApplicationCommandOptionType.Boolean,
+    required: false
+}
 module.exports = {
     name: 'set',
     nameLocalizations: {
@@ -30,22 +62,6 @@ module.exports = {
             type: ApplicationCommandOptionType.Subcommand,
             options: [
                 {
-                    name: 'user',
-                    nameLocalizations: {
-                        'ru': `user`,
-                        'uk': `user`,
-                        'es-ES': `usuario`
-                    },
-                    description: 'Target user',
-                    descriptionLocalizations: {
-                        'ru': `Целевой пользователь`,
-                        'uk': `Цільовий користувач`,
-                        'es-ES': `Usuario objetivo`
-                    },
-                    type: ApplicationCommandOptionType.User,
-                    required: true
-                },
-                {
                     name: 'amount',
                     nameLocalizations: {
                         'ru': `amount`,
@@ -62,7 +78,9 @@ module.exports = {
                     required: true,
                     min_value: 1,
                     max_value: 1000
-                }
+                },
+                USER_OPTION,
+                ALL_USERS_OPTION
             ]
         },
         {
@@ -81,22 +99,6 @@ module.exports = {
             type: ApplicationCommandOptionType.Subcommand,
             options: [
                 {
-                    name: 'user',
-                    nameLocalizations: {
-                        'ru': `user`,
-                        'uk': `user`,
-                        'es-ES': `usuario`
-                    },
-                    description: 'Target user',
-                    descriptionLocalizations: {
-                        'ru': `Целевой пользователь`,
-                        'uk': `Цільовий користувач`,
-                        'es-ES': `Usuario objetivo`
-                    },
-                    type: ApplicationCommandOptionType.User,
-                    required: true
-                },
-                {
                     name: 'amount',
                     nameLocalizations: {
                         'ru': `amount`,
@@ -113,7 +115,9 @@ module.exports = {
                     required: true,
                     min_value: 1,
                     max_value: 1000
-                }
+                },
+                USER_OPTION,
+                ALL_USERS_OPTION
             ]
         },
         {
@@ -132,22 +136,6 @@ module.exports = {
             type: ApplicationCommandOptionType.Subcommand,
             options: [
                 {
-                    name: 'user',
-                    nameLocalizations: {
-                        'ru': `user`,
-                        'uk': `user`,
-                        'es-ES': `usuario`
-                    },
-                    description: 'Target user',
-                    descriptionLocalizations: {
-                        'ru': `Целевой пользователь`,
-                        'uk': `Цільовий користувач`,
-                        'es-ES': `Usuario objetivo`
-                    },
-                    type: ApplicationCommandOptionType.User,
-                    required: true
-                },
-                {
                     name: 'amount',
                     nameLocalizations: {
                         'ru': `amount`,
@@ -164,7 +152,9 @@ module.exports = {
                     required: true,
                     min_value: 0,
                     max_value: 1000000
-                }
+                },
+                USER_OPTION,
+                ALL_USERS_OPTION
             ]
         },
         {
@@ -183,22 +173,6 @@ module.exports = {
             type: ApplicationCommandOptionType.Subcommand,
             options: [
                 {
-                    name: 'user',
-                    nameLocalizations: {
-                        'ru': `user`,
-                        'uk': `user`,
-                        'es-ES': `usuario`
-                    },
-                    description: 'Target user',
-                    descriptionLocalizations: {
-                        'ru': `Целевой пользователь`,
-                        'uk': `Цільовий користувач`,
-                        'es-ES': `Usuario objetivo`
-                    },
-                    type: ApplicationCommandOptionType.User,
-                    required: true
-                },
-                {
                     name: 'amount',
                     nameLocalizations: {
                         'ru': `amount`,
@@ -215,7 +189,9 @@ module.exports = {
                     required: true,
                     min_value: 0,
                     max_value: 1000000000
-                }
+                },
+                USER_OPTION,
+                ALL_USERS_OPTION
             ]
         },
         {
@@ -234,22 +210,6 @@ module.exports = {
             type: ApplicationCommandOptionType.Subcommand,
             options: [
                 {
-                    name: 'user',
-                    nameLocalizations: {
-                        'ru': `user`,
-                        'uk': `user`,
-                        'es-ES': `usuario`
-                    },
-                    description: 'Target user',
-                    descriptionLocalizations: {
-                        'ru': `Целевой пользователь`,
-                        'uk': `Цільовий користувач`,
-                        'es-ES': `Usuario objetivo`
-                    },
-                    type: ApplicationCommandOptionType.User,
-                    required: true
-                },
-                {
                     name: 'amount',
                     nameLocalizations: {
                         'ru': `amount`,
@@ -266,7 +226,9 @@ module.exports = {
                     required: true,
                     min_value: -1000,
                     max_value: 1000
-                }
+                },
+                USER_OPTION,
+                ALL_USERS_OPTION
             ]
         },
         {
@@ -285,22 +247,6 @@ module.exports = {
             type: ApplicationCommandOptionType.Subcommand,
             options: [
                 {
-                    name: 'user',
-                    nameLocalizations: {
-                        'ru': `user`,
-                        'uk': `user`,
-                        'es-ES': `usuario`
-                    },
-                    description: 'Target user',
-                    descriptionLocalizations: {
-                        'ru': `Целевой пользователь`,
-                        'uk': `Цільовий користувач`,
-                        'es-ES': `Usuario objetivo`
-                    },
-                    type: ApplicationCommandOptionType.User,
-                    required: true
-                },
-                {
                     name: 'amount',
                     nameLocalizations: {
                         'ru': `amount`,
@@ -317,7 +263,9 @@ module.exports = {
                     required: true,
                     min_value: 0,
                     max_value: 10000
-                }
+                },
+                USER_OPTION,
+                ALL_USERS_OPTION
             ]
         },
         {
@@ -603,10 +551,63 @@ module.exports = {
     cooldowns: new Collection(),
     run: async (client, interaction, args) => {
         await interaction.deferReply({ flags: ["Ephemeral"] })
-        const member = await interaction.guild.members.fetch(args.user).catch(e => null)
-        if (!member) return interaction.editReply({ content: `${client.config.emojis.NO} ${client.language({ textId: "User with ID", guildId: interaction.guildId, locale: interaction.locale })} **${args.user}** ${client.language({ textId: "not found on server", guildId: interaction.guildId, locale: interaction.locale })}.`})
-        if (member.user.bot) return interaction.editReply({ content: `${client.config.emojis.NO} ${client.language({ textId: "You cannot use this command for a bot", guildId: interaction.guildId, locale: interaction.locale })}.`, flags: ["Ephemeral"] })
-        const profile = await client.functions.fetchProfile(client, args.user, interaction.guildId)
+        const allUsers = args.all_users === true
+        let member = null
+        if (!allUsers) {
+            if (!args.user) return interaction.editReply({ content: `${client.config.emojis.NO} ${client.language({ textId: "Select a user or enable the All Users option", guildId: interaction.guildId, locale: interaction.locale })}` })
+            member = await interaction.guild.members.fetch(args.user).catch(e => null)
+            if (!member) return interaction.editReply({ content: `${client.config.emojis.NO} ${client.language({ textId: "User with ID", guildId: interaction.guildId, locale: interaction.locale })} **${args.user}** ${client.language({ textId: "not found on server", guildId: interaction.guildId, locale: interaction.locale })}.`})
+            if (member.user.bot) return interaction.editReply({ content: `${client.config.emojis.NO} ${client.language({ textId: "You cannot use this command for a bot", guildId: interaction.guildId, locale: interaction.locale })}.`, flags: ["Ephemeral"] })
+        }
+        // Guild-wide application: walks every non-bot member, applies `fn`
+        // to their profile, reports progress, returns the affected count.
+        async function applyToAllUsers(label, fn) {
+            if (!client.fetchedMembers.has(interaction.guildId)) {
+                await interaction.guild.members.fetch().catch(() => null)
+                client.fetchedMembers.add(interaction.guildId)
+            }
+            const members = interaction.guild.members.cache.filter(m => !m.user.bot)
+            let done = 0
+            for (const m of members.values()) {
+                try {
+                    const p = await client.functions.fetchProfile(client, m.id, interaction.guildId)
+                    await fn(p)
+                    done++
+                } catch (e) {
+                    console.error(`[set all_users] Failed for ${m.id}:`, e)
+                }
+                if (done > 0 && done % 50 === 0) {
+                    await interaction.editReply({ content: `⏳ ${label} — ${done}/${members.size}` }).catch(() => null)
+                }
+            }
+            return done
+        }
+        const profile = member ? await client.functions.fetchProfile(client, args.user, interaction.guildId) : null
+        if (allUsers) {
+            const settingsAll = args.Subcommand === "currency" ? (client.cache.settings.get(interaction.guildId) || await client.functions.fetchSettings(client, interaction.guildId)) : null
+            const labels = {
+                level: `🎖${client.language({ textId: "Level", guildId: interaction.guildId, locale: interaction.locale })}`,
+                season_level: `${client.config.emojis.seasonLevel}${client.language({ textId: "Season level", guildId: interaction.guildId, locale: interaction.locale })}`,
+                experience: `${client.config.emojis.XP}${client.language({ textId: "XP", guildId: interaction.guildId, locale: interaction.locale })}`,
+                reputation: `${client.config.emojis.RP}${client.language({ textId: "Reputation", guildId: interaction.guildId, locale: interaction.locale })}`,
+                currency: settingsAll ? `${settingsAll.displayCurrencyEmoji}${settingsAll.currencyName}` : `currency`,
+                likes: `${client.config.emojis.heart}`
+            }
+            // rp/currency/likes use delta-accumulating setters — passing
+            // (target - current) sets the absolute value
+            const fns = {
+                level: (p) => p.setLevel(args.amount, true),
+                season_level: (p) => p.setSeasonLevel(args.amount, true),
+                experience: (p) => p.setXp(args.amount, true),
+                reputation: (p) => { p.rp = args.amount - p.rp; return p.save() },
+                currency: (p) => { p.currency = args.amount - p.currency; return p.save() },
+                likes: (p) => { p.likes = args.amount - p.likes; return p.save() }
+            }
+            const fn = fns[args.Subcommand]
+            if (!fn) return interaction.editReply({ content: `${client.config.emojis.NO} ${client.language({ textId: "All Users is not supported for this subcommand", guildId: interaction.guildId, locale: interaction.locale })}` })
+            const count = await applyToAllUsers(`${labels[args.Subcommand]} (${args.amount.toLocaleString()})`, fn)
+            return interaction.editReply({ content: `${client.config.emojis.YES} ${labels[args.Subcommand]} (${args.amount.toLocaleString()}) ${client.language({ textId: "was set for", guildId: interaction.guildId, locale: interaction.locale })} — ${client.language({ textId: "users", guildId: interaction.guildId, locale: interaction.locale })}: ${count.toLocaleString()}` })
+        }
         if (args.Subcommand === "level") {
             await profile.setLevel(args.amount, true)
             return interaction.editReply({ content: `${client.config.emojis.YES} 🎖**${client.language({ textId: "Level", guildId: interaction.guildId, locale: interaction.locale })}** (${args.amount.toLocaleString()}) ${client.language({ textId: "was set for", guildId: interaction.guildId, locale: interaction.locale })} <@${args.user}>`, flags: ["Ephemeral"] }) 

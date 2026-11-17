@@ -1242,28 +1242,37 @@ class Profile {
                 const settings = this.client.cache.settings.find(settings => settings.guildID === this.guildID)
                 if (!settings) return
 
-                // Send rank card notification if enabled
+                // Lazily generate the rank card once — shared by every configured channel
+                let rankCardBuffer = null
+                const getRankCard = async () => {
+                    if (rankCardBuffer) return rankCardBuffer
+                    const { generateRankCard } = require('../modules/generateRankCard')
+                    const profiles = this.client.cache.profiles.filter(e => e.guildID === this.guildID).map(e => e).sort((a, b) => b.totalxp - a.totalxp)
+                    const rank = profiles.findIndex(e => e.userID === this.userID) + 1
+                    rankCardBuffer = await generateRankCard({ member, profile: this, settings, rank })
+                    return rankCardBuffer
+                }
+
+                // Legacy combined-panel level-up channel (kept for guilds configured before that option was removed)
                 if (settings.levelUpNotifications?.enabled && settings.levelUpNotifications?.channelId) {
                     try {
                         const notifChannel = await guild.channels.fetch(settings.levelUpNotifications.channelId).catch(() => null)
                         if (notifChannel) {
-                            const { generateRankCard } = require('../modules/generateRankCard')
-                            const profiles = this.client.cache.profiles.filter(e => e.guildID === this.guildID).map(e => e).sort((a, b) => b.totalxp - a.totalxp)
-                            const rank = profiles.findIndex(e => e.userID === this.userID) + 1
-                            const rankCardBuffer = await generateRankCard({ member, profile: this, settings, rank })
+                            const buffer = await getRankCard()
                             await notifChannel.send({
                                 content: `Hey! you <@${member.user.id}> !!! You just reached level ${this.level}. GG!`,
-                                files: [{ attachment: rankCardBuffer, name: `rank_${member.user.id}.png` }]
+                                files: [{ attachment: buffer, name: `rank_${member.user.id}.png` }]
                             }).catch(e => null)
                         }
                     } catch (e) {
                         console.error('Error sending level up notification:', e)
                     }
                 }
-                
+
+                // Apply level role rewards regardless of which channel is configured
+                let rolesadd = ""
+                let rolesremove = ""
                 if (settings.levelsRoles?.length > 0) {
-                    let rolesadd = ""
-                    let rolesremove = ""
                     const rolesAdd = settings.levelsRoles.filter(e => this.level >= e.levelFrom && (!e.levelTo || e.levelTo > this.level) && !member.roles.cache.has(e.roleId))
                     for (const role of rolesAdd) {
                         const guild_role = await guild.roles.fetch(role.roleId).catch(e => null)
@@ -1280,18 +1289,27 @@ class Profile {
                             rolesremove += `\n> <@&${guild_role.id}>`
                         }
                     }
-                    const newLevelNotifEmbed = new EmbedBuilder()
-                        .setColor(member.displayHexColor)
-                        .setFooter({ text: `${member.displayName} ${this.sex === "male" ? `${this.client.language({ textId: "received", guildId: guild.id })}` : this.sex === "female" ? `${this.client.language({ textId: "received", guildId: guild.id })}` : `${this.client.language({ textId: "received", guildId: guild.id })}`} ${this.client.language({ textId: "level", guildId: guild.id })} 🎖${this.level}!\n${this.client.language({ textId: "Until next level", guildId: guild.id })} ⭐${this.xp.toFixed()}/${this.level * settings.levelfactor + 100 } XP (${Math.floor((this.xp / (this.level * settings.levelfactor + 100)) * 100)}%)`, iconURL: member.displayAvatarURL() })
-                    if (rolesadd == "" && rolesremove == "" && settings.channels.levelNotificationChannelId) return guild.channels.fetch(settings.channels.levelNotificationChannelId).then(channel => channel.send({ embeds: [newLevelNotifEmbed] })).catch(e => null)
-                    newLevelNotifEmbed.setAuthor({ name: `${member.displayName} ${this.sex === "male" ? `${this.client.language({ textId: "received", guildId: guild.id })}` : this.sex === "female" ? `${this.client.language({ textId: "received", guildId: guild.id })}` : `${this.client.language({ textId: "received", guildId: guild.id })}`} ${this.client.language({ textId: "level", guildId: guild.id })} 🎖${this.level}!`, iconURL: member.displayAvatarURL() })
-                    if (rolesadd !== "") newLevelNotifEmbed.addFields([{ name: `${this.client.language({ textId: "Roles added", guildId: guild.id })}:`, value: rolesadd }])
-                    if (rolesremove !== "") newLevelNotifEmbed.addFields([{ name: `${this.client.language({ textId: "Roles removed", guildId: guild.id })}:`, value: rolesremove }])
-                    newLevelNotifEmbed.setFooter({ text: `${this.client.language({ textId: "Until next level", guildId: guild.id })} ⭐${this.xp.toFixed()}/${this.level * settings.levelfactor + 100 } XP (${Math.floor((this.xp / (this.level * settings.levelfactor + 100)) * 100)}%)` })
-                    if (settings.channels?.levelNotificationChannelId) guild.channels.fetch(settings.channels.levelNotificationChannelId).then(channel => channel.send({ content: this.levelMention ? `<@${member.user.id}>` : ` `, embeds: [newLevelNotifEmbed] })).catch(e => null)
-                } else {
-                    if (settings.channels?.levelNotificationChannelId) guild.channels.fetch(settings.channels.levelNotificationChannelId).then(channel => channel.send({ content: this.levelMention ? `<@${member.user.id}>` : ` `, embeds: [newLevelNotifEmbed] })).catch(e => null)
-                }    
+                }
+
+                // Dedicated level-up channel: rank card, with an embed only for
+                // role changes or as a fallback when card generation fails
+                if (settings.channels?.levelNotificationChannelId) {
+                    const notifChannel = await guild.channels.fetch(settings.channels.levelNotificationChannelId).catch(e => null)
+                    if (notifChannel) {
+                        const files = []
+                        try { files.push({ attachment: await getRankCard(), name: `rank_${member.user.id}.png` }) } catch (e) { console.error('Error generating rank card for level up notification:', e) }
+                        let newLevelNotifEmbed = null
+                        if (!files.length || rolesadd !== "" || rolesremove !== "") {
+                            newLevelNotifEmbed = new EmbedBuilder()
+                                .setColor(member.displayHexColor)
+                                .setAuthor({ name: `${member.displayName} ${this.client.language({ textId: "received", guildId: guild.id })} ${this.client.language({ textId: "level", guildId: guild.id })} 🎖${this.level}!`, iconURL: member.displayAvatarURL() })
+                            if (rolesadd !== "") newLevelNotifEmbed.addFields([{ name: `${this.client.language({ textId: "Roles added", guildId: guild.id })}:`, value: rolesadd }])
+                            if (rolesremove !== "") newLevelNotifEmbed.addFields([{ name: `${this.client.language({ textId: "Roles removed", guildId: guild.id })}:`, value: rolesremove }])
+                            if (!files.length) newLevelNotifEmbed.setFooter({ text: `${this.client.language({ textId: "Until next level", guildId: guild.id })} ⭐${this.xp.toFixed()}/${this.level * settings.levelfactor + 100 } XP (${Math.floor((this.xp / (this.level * settings.levelfactor + 100)) * 100)}%)` })
+                        }
+                        await notifChannel.send({ content: this.levelMention ? `<@${member.user.id}>` : ` `, files, embeds: newLevelNotifEmbed ? [newLevelNotifEmbed] : [] }).catch(e => null)
+                    }
+                }
             }
             const achievements = this.client.cache.achievements.filter(e => e.guildID === this.guildID && e.type === AchievementType.Level && e.enabled)
             await Promise.all(achievements.map(async achievement => {
