@@ -8,6 +8,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const mongoose = require('mongoose');
 
 // Path to the JSON data file.
 // VOICE_DATA_PATH lets deployments (e.g. a Render persistent disk mounted at
@@ -15,6 +16,11 @@ const path = require('path');
 const DATA_FILE_PATH = process.env.VOICE_DATA_PATH
   ? path.resolve(process.env.VOICE_DATA_PATH)
   : path.join(__dirname, '../../voice_data.json');
+
+// Mongo persistence: hosts like Render wipe the project filesystem on every
+// restart, so voice_data.json alone loses the configured "Join to Create"
+// channel. The store is mirrored into MongoDB (primary connection) — the
+// newest copy wins on boot and both stores are kept in sync afterwards.
 
 // Default empty data structure
 const DEFAULT_DATA = {
@@ -35,6 +41,119 @@ const DEFAULT_DATA = {
 let dataCache = null;
 let saveTimeout = null;
 const SAVE_DEBOUNCE_MS = 1000; // Save at most once per second
+
+// ============================================
+// MongoDB Mirror
+// ============================================
+
+const MONGO_DOC_ID = 'voice_data';
+let VoiceDataModel = null;
+let mongoReady = false;
+let initPromise = null;
+
+function getVoiceDataModel() {
+  if (VoiceDataModel) return VoiceDataModel;
+  try {
+    const schema = new mongoose.Schema({
+      _id: { type: String, required: true },
+      data: { type: mongoose.Schema.Types.Mixed, default: {} },
+      updatedAt: { type: Date, default: Date.now }
+    }, { collection: 'voicedata', minimize: false });
+    VoiceDataModel = mongoose.models.voicedata || mongoose.model('voicedata', schema);
+  } catch {
+    return null;
+  }
+  return VoiceDataModel;
+}
+
+async function waitForMongoConnection(timeoutMs = 15000) {
+  if (mongoose.connection.readyState === 1) return true;
+  return new Promise(resolve => {
+    const onConnected = () => { cleanup(); resolve(true); };
+    const timer = setTimeout(() => { cleanup(); resolve(mongoose.connection.readyState === 1); }, timeoutMs);
+    const cleanup = () => {
+      clearTimeout(timer);
+      mongoose.connection.removeListener('connected', onConnected);
+    };
+    mongoose.connection.once('connected', onConnected);
+  });
+}
+
+async function writeToMongo(dataToSave) {
+  // Late-bind: if the connection came up after initialize()'s wait timed
+  // out, flip on here — file data already hydrated wins via mtime anyway.
+  if (!mongoReady && mongoose.connection.readyState === 1) mongoReady = true;
+  const Model = mongoReady && getVoiceDataModel();
+  if (!Model) return;
+  try {
+    await Model.findByIdAndUpdate(
+      MONGO_DOC_ID,
+      { data: dataToSave, updatedAt: new Date() },
+      { upsert: true }
+    );
+  } catch (error) {
+    console.error('[Auto Voice] Mongo save failed (local file still written):', error.message);
+  }
+}
+
+/**
+ * Hydrate dataCache from MongoDB (and/or the local file), then keep both
+ * stores in sync. Must run before the bot starts serving voice events /
+ * restart reconciliation so the configured generator channel is known.
+ */
+async function initialize() {
+  try {
+    const fileData = (() => {
+      try {
+        if (!fs.existsSync(DATA_FILE_PATH)) return null;
+        return {
+          parsed: JSON.parse(fs.readFileSync(DATA_FILE_PATH, 'utf8')),
+          mtime: fs.statSync(DATA_FILE_PATH).mtimeMs
+        };
+      } catch {
+        return null;
+      }
+    })();
+
+    let doc = null;
+    const connected = await waitForMongoConnection();
+    const Model = connected && getVoiceDataModel();
+    if (Model) {
+      doc = await Model.findById(MONGO_DOC_ID).lean().catch(() => null);
+      mongoReady = true;
+    }
+
+    const docTime = doc?.updatedAt ? new Date(doc.updatedAt).getTime() : 0;
+    if (doc?.data && docTime >= (fileData?.mtime || 0)) {
+      dataCache = { ...DEFAULT_DATA, ...convertIdsToStrings(doc.data) };
+    } else if (fileData?.parsed) {
+      dataCache = { ...DEFAULT_DATA, ...convertIdsToStrings(fileData.parsed) };
+    } else if (doc?.data) {
+      dataCache = { ...DEFAULT_DATA, ...convertIdsToStrings(doc.data) };
+    } else {
+      dataCache = { ...DEFAULT_DATA };
+    }
+
+    // Re-sync both stores so the loser converges on the winner
+    const snapshot = convertIdsToStrings(dataCache);
+    try { writeDataAtomic(snapshot); } catch {}
+    if (mongoReady) writeToMongo(snapshot);
+    return true;
+  } catch (error) {
+    console.error('[Auto Voice] Mongo data-store init failed, falling back to local file:', error.message);
+    mongoReady = false;
+    loadVoiceData();
+    return false;
+  }
+}
+
+/**
+ * Resolves once data hydration is complete (Mongo or file fallback).
+ */
+function whenReady() {
+  if (!initPromise) initPromise = initialize();
+  return initPromise;
+}
 
 /**
  * Recursively converts all numeric IDs to strings in an object
@@ -130,6 +249,7 @@ function scheduleSave() {
       } catch (err) {
         console.error('Error saving voice data:', err.message);
       }
+      writeToMongo(dataToSave);
     }
   }, SAVE_DEBOUNCE_MS);
 }
@@ -152,11 +272,13 @@ function forceSave() {
   }
   
   if (dataCache) {
+    const dataToSave = convertIdsToStrings(dataCache);
     try {
-      writeDataAtomic(convertIdsToStrings(dataCache));
+      writeDataAtomic(dataToSave);
     } catch (error) {
       console.error('Error force saving voice data:', error.message);
     }
+    return writeToMongo(dataToSave);
   }
 }
 
@@ -454,6 +576,8 @@ function getGuildCooldowns(guildId) {
 // ============================================
 
 module.exports = {
+  initialize,
+  whenReady,
   loadVoiceData,
   saveVoiceData,
   forceSave,

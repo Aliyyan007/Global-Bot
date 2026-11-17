@@ -163,10 +163,10 @@ async function renderTypePage(client, interaction, type) {
             .setPlaceholder(`📢 ${L('Select notification channel')}`)
             .setChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
         if (config.channelId) {
-            // Deleted channels make Discord reject the whole payload
+            // Deleted or wrong-type channels make Discord reject the payload
             const existing = interaction.guild.channels.cache.get(config.channelId)
                 || await interaction.guild.channels.fetch(config.channelId).catch(() => null)
-            if (existing) channelSelect.setDefaultChannels(config.channelId)
+            if (existing && existing.isTextBased()) channelSelect.setDefaultChannels(config.channelId)
         }
         rows.push(new ActionRowBuilder().addComponents(channelSelect))
     }

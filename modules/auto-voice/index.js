@@ -24,6 +24,12 @@ async function initialize(discordClient) {
   // Initialize voice preferences database (no Discord access needed)
   await voicePreferences.initialize();
 
+  // Hydrate the voice data store from MongoDB/file before anything can
+  // query it — on hosts with ephemeral filesystems (Render) the JSON file
+  // is wiped each restart, so the configured "Join to Create" channel only
+  // survives via the Mongo mirror.
+  await dataStore.whenReady().catch(e => console.error('[Auto Voice] Data store init error:', e.message));
+
   // Discord-touching reconciliation must wait until the client is
   // authenticated — initialize() runs before client.login(), so fetching
   // here would fail and wipe every persisted temp-channel record.
@@ -48,6 +54,8 @@ async function initialize(discordClient) {
  */
 async function reconcile(discordClient) {
   try {
+    // Wait for Mongo/file hydration so voice_settings are actually known
+    await dataStore.whenReady().catch(() => null);
     const data = dataStore.loadVoiceData();
     const voiceSettings = data.voice_settings || {};
     let pruned = 0;
@@ -174,7 +182,7 @@ async function deleteLinkedChannels(guild, tempData) {
  */
 async function shutdown() {
   console.log('[Auto Voice] Shutting down, saving data...');
-  dataStore.forceSave();
+  await dataStore.forceSave().catch(() => null);
   await voicePreferences.shutdown();
 }
 
@@ -195,6 +203,7 @@ function isConfigured(guildId) {
  */
 async function handleVoiceStateUpdate(oldState, newState) {
   try {
+    await dataStore.whenReady().catch(() => null);
     await voiceStateUpdate.execute(oldState, newState);
     return true;
   } catch (error) {

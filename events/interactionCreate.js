@@ -224,9 +224,39 @@ async function handleInteraction(interaction) {
 	await client.functions.fetchSettings(client, interaction.guildId)
 	// Autocomplete Handling
     if (interaction.type === InteractionType.ApplicationCommandAutocomplete) {
+		// "user" option on take/set/reset-limits: first suggestion is the
+		// "All Users" pseudo-entry (value 'all'), followed by real members.
+		const respondUserTargets = async () => {
+			const focused = interaction.options.getFocused(true)
+			const query = String(focused.value ?? "").toLowerCase()
+			const options = []
+			if (!query || "all users".includes(query)) {
+				options.push({ name: `👥 ${client.language({ textId: "All Users", guildId: interaction.guildId, locale: interaction.locale })}`, value: "all" })
+			}
+			let members = [...interaction.guild.members.cache.values()].filter(m => !m.user.bot)
+			if (query) {
+				members = members.filter(m => m.user.username.toLowerCase().includes(query) || (m.displayName || "").toLowerCase().includes(query) || m.id === query)
+				if (members.length < 10) {
+					const fetched = await interaction.guild.members.fetch({ query: String(focused.value), limit: 25 }).catch(() => null)
+					if (fetched?.size) members = [...fetched.values()].filter(m => !m.user.bot)
+				}
+			}
+			for (const m of members.slice(0, 24)) {
+				options.push({ name: `${m.displayName} (@${m.user.username})`.slice(0, 100), value: m.id })
+			}
+			return interaction.respond(options.slice(0, 25)).catch(() => null)
+		}
 		if (interaction.commandName === "take") {
+			const focused = interaction.options.getFocused(true)
+			if (focused.name === "user") return respondUserTargets()
+			if (focused.name === "amount") {
+				const typed = String(focused.value ?? "").trim()
+				const options = [{ name: `${client.language({ textId: "Full", guildId: interaction.guildId, locale: interaction.locale })} (${client.language({ textId: "take entire balance", guildId: interaction.guildId, locale: interaction.locale })})`, value: "full" }]
+				if (/^\d+$/.test(typed)) options.unshift({ name: typed, value: typed })
+				return interaction.respond(options.slice(0, 25)).catch(() => null)
+			}
 			const userID = interaction.options.get("user")?.value
-			if (!userID) return interaction.respond([]).catch(e => null)
+			if (!userID || userID === "all") return interaction.respond([]).catch(e => null)
 			const focus = interaction.options.getFocused()
 			const profile = await client.functions.fetchProfile(client, userID, interaction.guildId)
 			const options = []
@@ -238,6 +268,9 @@ async function handleInteraction(interaction) {
 				})
 			})
 			return interaction.respond(options.filter(e => e.name.toLowerCase().includes(focus.toLowerCase())).slice(0, 24)).catch(e => null)
+		}
+		if (interaction.commandName === "set" || interaction.commandName === "reset-limits") {
+			if (interaction.options.getFocused(true)?.name === "user") return respondUserTargets()
 		}
 		if (interaction.commandName === "transfer-role") {
 			const focus = interaction.options.getFocused()
@@ -617,8 +650,20 @@ async function handleInteraction(interaction) {
             const subCommand = interaction.options.getSubcommand()
             if (!subCommand) return interaction.respond([]).catch(e => null)
             const time = subCommand === "daily" ? "dailyLimits" : subCommand === "weekly" ? "weeklyLimits" : "monthlyLimits"
-            const profile = await client.functions.fetchProfile(client, userID, interaction.guildId)
             const options = []
+            if (userID === "all") {
+                // Guild-wide target — offer every enabled item in the shop
+                const focusAll = String(interaction.options.getFocused() ?? "").toLowerCase()
+                client.cache.items.filter(item => item.guildID === interaction.guildId && !item.temp && item.enabled && item.name.toLowerCase().includes(focusAll)).first(24).forEach(item => {
+                    const isDefaultEmoji = node_emoji.hasEmoji(item.emoji || "")
+                    options.push({
+                        name: !isDefaultEmoji ? item.name : item.displayEmoji + item.name,
+                        value: item.name
+                    })
+                })
+                return interaction.respond(options).catch(e => null)
+            }
+            const profile = await client.functions.fetchProfile(client, userID, interaction.guildId)
             for (const itemID in profile[time]) {
                 const item = client.cache.items.get(itemID)
                 if (item) {

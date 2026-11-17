@@ -200,7 +200,7 @@ client.rest.on("rateLimited", error => {
 // Auto Voice Integration - Initialize and setup graceful shutdown
 const autoVoice = require('./modules/auto-voice')
 const stickyManagerSession = require('./handler/stickyManagerSession')
-autoVoice.initialize(client)
+autoVoice.initialize(client).catch(e => console.error('[Auto Voice] initialize failed:', e))
 
 // Determine which Redis system to use (cluster or single)
 const useRedisCluster = process.env.REDIS_URL_1 || process.env.REDIS_URL_2 || process.env.REDIS_URL_3

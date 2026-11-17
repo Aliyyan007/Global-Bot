@@ -5,6 +5,20 @@ const TitleRegexp = /title{(.*?)}/
 const MarkRegexp = /mark{(.*?)}/
 const { v4: uuidv4 } = require("uuid")
 const { RewardType } = require("../enums")
+
+// Discord caps modal field labels at 45 characters. Several localized
+// strings exceed that (e.g. the level-factor label is 46+ chars), which makes
+// LabelBuilder throw before showModal — the select then spins "loading"
+// forever. Truncate once, globally, so no modal can hit the limit again.
+if (!LabelBuilder.prototype.setLabel.__patched45) {
+    const original = LabelBuilder.prototype.setLabel
+    const patched = function (label) {
+        const s = String(label)
+        return original.call(this, s.length > 45 ? s.slice(0, 45) : s)
+    }
+    patched.__patched45 = true
+    LabelBuilder.prototype.setLabel = patched
+}
 module.exports = {
     name: `manager-settings`,
     nameLocalizations: {
@@ -237,12 +251,18 @@ module.exports = {
                 if (interaction.isStringSelectMenu() && interaction.customId.includes("notificationChannels")) {
                     const pageMatch = /^nc_page_(.+)$/.exec(interaction.values?.[0] || "")
                     if (pageMatch) {
-                        // Acknowledge first — the config read can outrun the 3s window
-                        await interaction.deferUpdate().catch(() => null)
                         const payload = await notifPanel.renderTypePage(client, interaction, pageMatch[1])
                         if (payload) {
                             const components = [first_row, ...payload.components]
-                            return interaction.editReply({ embeds: payload.embeds, components: components.slice(0, 5) })
+                            // On the public panel, open the type page as a NEW
+                            // ephemeral message — admin config shouldn't be
+                            // broadcast in-channel. On an already-ephemeral
+                            // page (type nav), swap content in place.
+                            if (interaction.message?.ephemeral) {
+                                await interaction.deferUpdate().catch(() => null)
+                                return interaction.editReply({ embeds: payload.embeds, components: components.slice(0, 5) })
+                            }
+                            return interaction.reply({ embeds: payload.embeds, components: components.slice(0, 5), flags: ["Ephemeral"] })
                         }
                     }
                 }
@@ -3297,7 +3317,15 @@ module.exports = {
                         .setCustomId(`activities_${selectedKey}_${interaction.id}`)
                         .setTitle(`${client.language({ textId: "Earnings", guildId: interaction.guildId, locale: interaction.locale })}: ${selectedKey}`)
                         .setLabelComponents(modalFields)
-                    await interaction.showModal(modal);delete client.globalCooldown[`${interaction.guildId}_${interaction.user.id}`]
+                    try {
+                        await interaction.showModal(modal)
+                        delete client.globalCooldown[`${interaction.guildId}_${interaction.user.id}`]
+                    } catch (e) {
+                        // Never leave the select spinning — surface the failure
+                        if (interaction.replied || interaction.deferred) await interaction.followUp({ content: `${client.config.emojis.NO} ${e.message}`, flags: ["Ephemeral"] }).catch(() => null)
+                        else await interaction.reply({ content: `${client.config.emojis.NO} ${e.message}`, flags: ["Ephemeral"] }).catch(() => null)
+                        return
+                    }
                     const submitted = await interaction.awaitModalSubmit({ filter: (i) => i.customId === `activities_${selectedKey}_${interaction.id}` && i.user.id === interaction.user.id, time: 120000 }).catch(() => null)
                     if (!submitted || submitted.type !== InteractionType.ModalSubmit) return
                     const amount = Number(submitted.fields.getTextInputValue("amount")?.trim())
@@ -3367,7 +3395,14 @@ module.exports = {
                                         .setPlaceholder("250")
                                 )
                         ])
-                    await interaction.showModal(modal);delete client.globalCooldown[`${interaction.guildId}_${interaction.user.id}`]
+                    try {
+                        await interaction.showModal(modal)
+                        delete client.globalCooldown[`${interaction.guildId}_${interaction.user.id}`]
+                    } catch (e) {
+                        if (interaction.replied || interaction.deferred) await interaction.followUp({ content: `${client.config.emojis.NO} ${e.message}`, flags: ["Ephemeral"] }).catch(() => null)
+                        else await interaction.reply({ content: `${client.config.emojis.NO} ${e.message}`, flags: ["Ephemeral"] }).catch(() => null)
+                        return
+                    }
                     const submitted = await interaction.awaitModalSubmit({ filter: (i) => i.customId === `activities_levelfactor_${interaction.id}` && i.user.id === interaction.user.id, time: 120000 }).catch(() => null)
                     if (!submitted || submitted.type !== InteractionType.ModalSubmit) return
                     const factor = Number(submitted.fields.getTextInputValue("factor")?.trim())
@@ -3376,9 +3411,11 @@ module.exports = {
                     }
                     const date = new Date()
                     client.levelFactorCooldowns[interaction.guildId] = new Date(date.setMinutes(date.getMinutes() + 30))
+                    // Acknowledge the modal submit first — a slow save() can
+                    // outrun Discord's 3s ack window and kill the response.
+                    await submitted.deferUpdate().catch(() => null)
                     settings.levelfactor = factor
                     await settings.save()
-                    await submitted.deferUpdate().catch(() => null)
                     await submitted.editReply({ embeds: interaction.message.embeds, components: [new ActionRowBuilder().addComponents(new ButtonBuilder().setEmoji("⏳").setStyle(ButtonStyle.Secondary).setCustomId(`0`).setDisabled(true))] }).catch(() => null)
                     await recomputeLevels()
                     interaction = submitted

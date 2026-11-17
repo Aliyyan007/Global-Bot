@@ -118,13 +118,17 @@ async function getChannelConfig(guildId, type) {
     }
     
     try {
-        const settings = await Settings.findOne({ guildID: guildId });
-        
+        // lean(): must return plain objects — a Mongoose subdocument spread
+        // (updateConfig's {...existing}) carries $__/_doc internals that make
+        // the follow-up $set serialize circular refs and throw on save.
+        const settings = await Settings.findOne({ guildID: guildId }).lean();
+
         if (!settings || !settings.notificationChannels) {
             return null;
         }
-        
-        return settings.notificationChannels[fieldName] || null;
+
+        const config = settings.notificationChannels[fieldName];
+        return config ? JSON.parse(JSON.stringify(config)) : null;
     } catch (error) {
         throw new Error(`Failed to retrieve channel config: ${error.message}`);
     }

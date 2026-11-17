@@ -7,30 +7,15 @@ const USER_OPTION = {
         'uk': `user`,
         'es-ES': `usuario`
     },
-    description: 'Target user',
+    description: 'Target user (pick "All Users" to apply to everyone)',
     descriptionLocalizations: {
-        'ru': `Целевой пользователь`,
-        'uk': `Цільовий користувач`,
-        'es-ES': `Usuario objetivo`
+        'ru': `Целевой пользователь (выберите "All Users" для всех)`,
+        'uk': `Цільовий користувач (виберіть "All Users" для всіх)`,
+        'es-ES': `Usuario objetivo (elige "All Users" para todos)`
     },
-    type: ApplicationCommandOptionType.User,
-    required: false
-}
-const ALL_USERS_OPTION = {
-    name: 'all_users',
-    nameLocalizations: {
-        'ru': `all_users`,
-        'uk': `all_users`,
-        'es-ES': `todos`
-    },
-    description: 'Apply to all users in the server',
-    descriptionLocalizations: {
-        'ru': `Применить ко всем пользователям сервера`,
-        'uk': `Застосувати до всіх користувачів сервера`,
-        'es-ES': `Aplicar a todos los usuarios del servidor`
-    },
-    type: ApplicationCommandOptionType.Boolean,
-    required: false
+    type: ApplicationCommandOptionType.String,
+    required: false,
+    autocomplete: true
 }
 module.exports = {
     name: 'set',
@@ -79,8 +64,7 @@ module.exports = {
                     min_value: 1,
                     max_value: 1000
                 },
-                USER_OPTION,
-                ALL_USERS_OPTION
+                USER_OPTION
             ]
         },
         {
@@ -116,8 +100,7 @@ module.exports = {
                     min_value: 1,
                     max_value: 1000
                 },
-                USER_OPTION,
-                ALL_USERS_OPTION
+                USER_OPTION
             ]
         },
         {
@@ -153,8 +136,7 @@ module.exports = {
                     min_value: 0,
                     max_value: 1000000
                 },
-                USER_OPTION,
-                ALL_USERS_OPTION
+                USER_OPTION
             ]
         },
         {
@@ -190,8 +172,7 @@ module.exports = {
                     min_value: 0,
                     max_value: 1000000000
                 },
-                USER_OPTION,
-                ALL_USERS_OPTION
+                USER_OPTION
             ]
         },
         {
@@ -227,8 +208,7 @@ module.exports = {
                     min_value: -1000,
                     max_value: 1000
                 },
-                USER_OPTION,
-                ALL_USERS_OPTION
+                USER_OPTION
             ]
         },
         {
@@ -264,8 +244,7 @@ module.exports = {
                     min_value: 0,
                     max_value: 10000
                 },
-                USER_OPTION,
-                ALL_USERS_OPTION
+                USER_OPTION
             ]
         },
         {
@@ -551,13 +530,24 @@ module.exports = {
     cooldowns: new Collection(),
     run: async (client, interaction, args) => {
         await interaction.deferReply({ flags: ["Ephemeral"] })
-        const allUsers = args.all_users === true
+        const L = (textId) => client.language({ textId, guildId: interaction.guildId, locale: interaction.locale })
+        const userArg = String(args.user ?? "").trim()
+        const allUsers = /^all$/i.test(userArg)
         let member = null
+        let userId = null
         if (!allUsers) {
-            if (!args.user) return interaction.editReply({ content: `${client.config.emojis.NO} ${client.language({ textId: "Select a user or enable the All Users option", guildId: interaction.guildId, locale: interaction.locale })}` })
-            member = await interaction.guild.members.fetch(args.user).catch(e => null)
-            if (!member) return interaction.editReply({ content: `${client.config.emojis.NO} ${client.language({ textId: "User with ID", guildId: interaction.guildId, locale: interaction.locale })} **${args.user}** ${client.language({ textId: "not found on server", guildId: interaction.guildId, locale: interaction.locale })}.`})
-            if (member.user.bot) return interaction.editReply({ content: `${client.config.emojis.NO} ${client.language({ textId: "You cannot use this command for a bot", guildId: interaction.guildId, locale: interaction.locale })}.`, flags: ["Ephemeral"] })
+            if (!args.user) return interaction.editReply({ content: `${client.config.emojis.NO} ${L("Select a user or pick All Users")}` })
+            userId = userArg.replace(/[<@!>]/g, "")
+            if (/^\d{5,}$/.test(userId)) member = await interaction.guild.members.fetch(userId).catch(() => null)
+            if (!member) {
+                // Autocomplete returns IDs, but a typed name should still resolve
+                const q = userArg.toLowerCase()
+                member = interaction.guild.members.cache.find(m => !m.user.bot && (m.user.username.toLowerCase() === q || (m.displayName || "").toLowerCase() === q))
+                    || (await interaction.guild.members.fetch({ query: userArg, limit: 5 }).catch(() => null))?.find(m => !m.user.bot) || null
+            }
+            if (!member) return interaction.editReply({ content: `${client.config.emojis.NO} ${L("User with ID")} **${args.user}** ${L("not found on server")}.`})
+            if (member.user.bot) return interaction.editReply({ content: `${client.config.emojis.NO} ${L("You cannot use this command for a bot")}.`, flags: ["Ephemeral"] })
+            userId = member.id
         }
         // Guild-wide application: walks every non-bot member, applies `fn`
         // to their profile, reports progress, returns the affected count.
@@ -582,14 +572,14 @@ module.exports = {
             }
             return done
         }
-        const profile = member ? await client.functions.fetchProfile(client, args.user, interaction.guildId) : null
+        const profile = member ? await client.functions.fetchProfile(client, userId, interaction.guildId) : null
         if (allUsers) {
             const settingsAll = args.Subcommand === "currency" ? (client.cache.settings.get(interaction.guildId) || await client.functions.fetchSettings(client, interaction.guildId)) : null
             const labels = {
-                level: `🎖${client.language({ textId: "Level", guildId: interaction.guildId, locale: interaction.locale })}`,
-                season_level: `${client.config.emojis.seasonLevel}${client.language({ textId: "Season level", guildId: interaction.guildId, locale: interaction.locale })}`,
-                experience: `${client.config.emojis.XP}${client.language({ textId: "XP", guildId: interaction.guildId, locale: interaction.locale })}`,
-                reputation: `${client.config.emojis.RP}${client.language({ textId: "Reputation", guildId: interaction.guildId, locale: interaction.locale })}`,
+                level: `🎖${L("Level")}`,
+                season_level: `${client.config.emojis.seasonLevel}${L("Season level")}`,
+                experience: `${client.config.emojis.XP}${L("XP")}`,
+                reputation: `${client.config.emojis.RP}${L("Reputation")}`,
                 currency: settingsAll ? `${settingsAll.displayCurrencyEmoji}${settingsAll.currencyName}` : `currency`,
                 likes: `${client.config.emojis.heart}`
             }
@@ -604,32 +594,32 @@ module.exports = {
                 likes: (p) => { p.likes = args.amount - p.likes; return p.save() }
             }
             const fn = fns[args.Subcommand]
-            if (!fn) return interaction.editReply({ content: `${client.config.emojis.NO} ${client.language({ textId: "All Users is not supported for this subcommand", guildId: interaction.guildId, locale: interaction.locale })}` })
+            if (!fn) return interaction.editReply({ content: `${client.config.emojis.NO} ${L("All Users is not supported for this subcommand")}` })
             const count = await applyToAllUsers(`${labels[args.Subcommand]} (${args.amount.toLocaleString()})`, fn)
-            return interaction.editReply({ content: `${client.config.emojis.YES} ${labels[args.Subcommand]} (${args.amount.toLocaleString()}) ${client.language({ textId: "was set for", guildId: interaction.guildId, locale: interaction.locale })} — ${client.language({ textId: "users", guildId: interaction.guildId, locale: interaction.locale })}: ${count.toLocaleString()}` })
+            return interaction.editReply({ content: `${client.config.emojis.YES} ${labels[args.Subcommand]} (${args.amount.toLocaleString()}) ${L("was set for")} — ${L("users")}: ${count.toLocaleString()}` })
         }
         if (args.Subcommand === "level") {
             await profile.setLevel(args.amount, true)
-            return interaction.editReply({ content: `${client.config.emojis.YES} 🎖**${client.language({ textId: "Level", guildId: interaction.guildId, locale: interaction.locale })}** (${args.amount.toLocaleString()}) ${client.language({ textId: "was set for", guildId: interaction.guildId, locale: interaction.locale })} <@${args.user}>`, flags: ["Ephemeral"] }) 
+            return interaction.editReply({ content: `${client.config.emojis.YES} 🎖**${L("Level")}** (${args.amount.toLocaleString()}) ${L("was set for")} <@${userId}>`, flags: ["Ephemeral"] })
         }
         if (args.Subcommand === "season_level") {
-            await profile.setSeasonLevel(args.amount, true)  
-            return interaction.editReply({ content: `${client.config.emojis.YES} ${client.config.emojis.seasonLevel}**${client.language({ textId: "Season level", guildId: interaction.guildId, locale: interaction.locale })}** (${args.amount.toLocaleString()}) ${client.language({ textId: "was set for", guildId: interaction.guildId, locale: interaction.locale })} <@${args.user}>`, flags: ["Ephemeral"] }) 
+            await profile.setSeasonLevel(args.amount, true)
+            return interaction.editReply({ content: `${client.config.emojis.YES} ${client.config.emojis.seasonLevel}**${L("Season level")}** (${args.amount.toLocaleString()}) ${L("was set for")} <@${userId}>`, flags: ["Ephemeral"] })
         }
         if (args.Subcommand === "experience") {
             await profile.setXp(args.amount, true)
-            return interaction.editReply({ content: `${client.config.emojis.YES} ${client.config.emojis.XP}**${client.language({ textId: "XP", guildId: interaction.guildId, locale: interaction.locale })}** (${args.amount.toLocaleString()}) ${client.language({ textId: "was set for", guildId: interaction.guildId, locale: interaction.locale })} <@${args.user}>`, flags: ["Ephemeral"] })
+            return interaction.editReply({ content: `${client.config.emojis.YES} ${client.config.emojis.XP}**${L("XP")}** (${args.amount.toLocaleString()}) ${L("was set for")} <@${userId}>`, flags: ["Ephemeral"] })
         }
         if (args.Subcommand === "reputation") {
             profile.rp = args.amount - profile.rp
             profile.save()
-            return interaction.editReply({ content: `${client.config.emojis.YES} ${client.config.emojis.RP}**${client.language({ textId: "Reputation", guildId: interaction.guildId, locale: interaction.locale })}** (${args.amount.toLocaleString()}) ${client.language({ textId: "was set for", guildId: interaction.guildId, locale: interaction.locale })} <@${args.user}>` })
+            return interaction.editReply({ content: `${client.config.emojis.YES} ${client.config.emojis.RP}**${L("Reputation")}** (${args.amount.toLocaleString()}) ${L("was set for")} <@${userId}>` })
         }
         if (args.Subcommand === "currency") {
             const settings = client.cache.settings.get(interaction.guildId) || await client.functions.fetchSettings(client, interaction.guildId)
             profile.currency = args.amount - profile.currency
             await profile.save()
-            return interaction.editReply({ content: `${client.config.emojis.YES} ${settings.displayCurrencyEmoji}**${settings.currencyName}** (${args.amount.toLocaleString()}) ${client.language({ textId: "was set for", guildId: interaction.guildId, locale: interaction.locale })} <@${args.user}>` })
+            return interaction.editReply({ content: `${client.config.emojis.YES} ${settings.displayCurrencyEmoji}**${settings.currencyName}** (${args.amount.toLocaleString()}) ${L("was set for")} <@${userId}>` })
         }
         if (args.Subcommand === "likes") {
             const achievements = client.cache.achievements.filter(e => e.guildID === interaction.guildId && e.enabled && e.type === AchievementType.Like)
@@ -642,7 +632,7 @@ module.exports = {
                 }    
             }))
             await profile.save()
-            return interaction.editReply({ content: `${client.config.emojis.YES} ${client.config.emojis.heart}️${args.amount.toLocaleString()} ${client.language({ textId: "was set for", guildId: interaction.guildId, locale: interaction.locale })} <@${args.user}>` })
+            return interaction.editReply({ content: `${client.config.emojis.YES} ${client.config.emojis.heart}️${args.amount.toLocaleString()} ${client.language({ textId: "was set for", guildId: interaction.guildId, locale: interaction.locale })} <@${userId}>` })
         }
         if (args.Subcommand === "luck_boost") {
             if (args.percent === 0) {

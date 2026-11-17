@@ -6,30 +6,15 @@ const USER_OPTION = {
         'uk': `user`,
         'es-ES': `usuario`
     },
-    description: 'The user to reset limits',
+    description: 'The user to reset limits (pick "All Users" for everyone)',
     descriptionLocalizations: {
-        'ru': `Пользователь для сброса лимитов`,
-        'uk': `Користувач для скидання лімітів`,
-        'es-ES': `Usuario para reiniciar límites`
+        'ru': `Пользователь для сброса лимитов (выберите "All Users" для всех)`,
+        'uk': `Користувач для скидання лімітів (виберіть "All Users" для всіх)`,
+        'es-ES': `Usuario para reiniciar límites (elige "All Users" para todos)`
     },
-    type: ApplicationCommandOptionType.User,
-    required: false
-}
-const ALL_USERS_OPTION = {
-    name: 'all_users',
-    nameLocalizations: {
-        'ru': `all_users`,
-        'uk': `all_users`,
-        'es-ES': `todos`
-    },
-    description: 'Apply to all users in the server',
-    descriptionLocalizations: {
-        'ru': `Применить ко всем пользователям сервера`,
-        'uk': `Застосувати до всіх користувачів сервера`,
-        'es-ES': `Aplicar a todos los usuarios del servidor`
-    },
-    type: ApplicationCommandOptionType.Boolean,
-    required: false
+    type: ApplicationCommandOptionType.String,
+    required: false,
+    autocomplete: true
 }
 const ITEM_OPTION = {
     name: 'item',
@@ -76,7 +61,7 @@ module.exports = {
                 'es-ES': `Reiniciar límites diarios`
             },
             type: ApplicationCommandOptionType.Subcommand,
-            options: [ITEM_OPTION, USER_OPTION, ALL_USERS_OPTION]
+            options: [ITEM_OPTION, USER_OPTION]
         },
         {
             name: 'weekly',
@@ -92,7 +77,7 @@ module.exports = {
                 'es-ES': `Reiniciar límites semanales`
             },
             type: ApplicationCommandOptionType.Subcommand,
-            options: [ITEM_OPTION, USER_OPTION, ALL_USERS_OPTION]
+            options: [ITEM_OPTION, USER_OPTION]
         },
         {
             name: 'monthly',
@@ -108,7 +93,7 @@ module.exports = {
                 'es-ES': `Reiniciar límites mensuales`
             },
             type: ApplicationCommandOptionType.Subcommand,
-            options: [ITEM_OPTION, USER_OPTION, ALL_USERS_OPTION]
+            options: [ITEM_OPTION, USER_OPTION]
         },
     ],
     defaultMemberPermissions: "Administrator",
@@ -125,7 +110,8 @@ module.exports = {
         const time = args.Subcommand === "daily" ? "dailyLimits" : args.Subcommand === "weekly" ? "weeklyLimits" : "monthlyLimits"
         const item = client.cache.items.find(e => e.guildID === interaction.guildId && !e.temp && e.enabled && (e.itemID === args.item || e.name.toLowerCase().includes(args.item.toLowerCase())))
         if (!item) return interaction.reply({ content: `${client.config.emojis.NO}${client.language({ textId: "This item does not exist", guildId: interaction.guildId, locale: interaction.locale })}` })
-        if (args.all_users === true) {
+        const allUsers = /^all$/i.test(String(args.user ?? "").trim())
+        if (allUsers) {
             await interaction.deferReply({ flags: ["Ephemeral"] })
             if (!client.fetchedMembers.has(interaction.guildId)) {
                 await interaction.guild.members.fetch().catch(() => null)
@@ -151,12 +137,13 @@ module.exports = {
             if (!done) return interaction.editReply({ content: `${client.config.emojis.NO}${client.language({ textId: "No users have limits for item", guildId: interaction.guildId, locale: interaction.locale })} ${item.displayEmoji}**${item.name}**. ${client.language({ textId: "Reset not required", guildId: interaction.guildId, locale: interaction.locale })}.` })
             return interaction.editReply({ content: `${client.config.emojis.YES}${client.language({ textId: "Purchase limit for item", guildId: interaction.guildId, locale: interaction.locale })} ${item.displayEmoji}**${item.name}** ${client.language({ textId: "was reset for", guildId: interaction.guildId, locale: interaction.locale })} ${client.language({ textId: "users", guildId: interaction.guildId, locale: interaction.locale })}: ${done.toLocaleString()}.` })
         }
-        if (!args.user) return interaction.reply({ content: `${client.config.emojis.NO} ${client.language({ textId: "Select a user or enable the All Users option", guildId: interaction.guildId, locale: interaction.locale })}` })
-        const profile = await client.functions.fetchProfile(client, args.user, interaction.guildId)
+        if (!args.user) return interaction.reply({ content: `${client.config.emojis.NO} ${client.language({ textId: "Select a user or pick All Users", guildId: interaction.guildId, locale: interaction.locale })}` })
+        const userId = String(args.user).replace(/[<@!>]/g, "").trim()
+        const profile = await client.functions.fetchProfile(client, userId, interaction.guildId)
         if (!profile[time] || !profile[time][item.itemID]) return interaction.reply({ content: `${client.config.emojis.NO}${client.language({ textId: "User has no limits for item", guildId: interaction.guildId, locale: interaction.locale })} ${item.displayEmoji}**${item.name}**. ${client.language({ textId: "Reset not required", guildId: interaction.guildId, locale: interaction.locale })}.` })
         profile[time][item.itemID] = undefined
         if (!Object.values(profile[time]).filter(e => e !== undefined).length) profile[time] = undefined
         await profile.save()
-        return interaction.reply({ content: `${client.config.emojis.YES}${client.language({ textId: "Purchase limit for item", guildId: interaction.guildId, locale: interaction.locale })} ${item.displayEmoji}**${item.name}** ${client.language({ textId: "was reset for", guildId: interaction.guildId, locale: interaction.locale })} <@${args.user}>.` })
+        return interaction.reply({ content: `${client.config.emojis.YES}${client.language({ textId: "Purchase limit for item", guildId: interaction.guildId, locale: interaction.locale })} ${item.displayEmoji}**${item.name}** ${client.language({ textId: "was reset for", guildId: interaction.guildId, locale: interaction.locale })} <@${userId}>.` })
     }
 }

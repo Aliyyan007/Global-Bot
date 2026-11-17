@@ -6,30 +6,15 @@ const USER_OPTION = {
         'uk': `user`,
         'es-ES': `usuario`
     },
-    description: 'Target user',
+    description: 'Target user (pick "All Users" to apply to everyone)',
     descriptionLocalizations: {
-        'ru': `Целевой пользователь`,
-        'uk': `Цільовий користувач`,
-        'es-ES': `Usuario objetivo`
+        'ru': `Целевой пользователь (выберите "All Users" для всех)`,
+        'uk': `Цільовий користувач (виберіть "All Users" для всіх)`,
+        'es-ES': `Usuario objetivo (elige "All Users" para todos)`
     },
-    type: ApplicationCommandOptionType.User,
-    required: false
-}
-const ALL_USERS_OPTION = {
-    name: 'all_users',
-    nameLocalizations: {
-        'ru': `all_users`,
-        'uk': `all_users`,
-        'es-ES': `todos`
-    },
-    description: 'Apply to all users in the server',
-    descriptionLocalizations: {
-        'ru': `Применить ко всем пользователям сервера`,
-        'uk': `Застосувати до всіх користувачів сервера`,
-        'es-ES': `Aplicar a todos los usuarios del servidor`
-    },
-    type: ApplicationCommandOptionType.Boolean,
-    required: false
+    type: ApplicationCommandOptionType.String,
+    required: false,
+    autocomplete: true
 }
 module.exports = {
     name: 'take',
@@ -67,34 +52,17 @@ module.exports = {
                         'uk': `amount`,
                         'es-ES': `cantidad`
                     },
-                    description: 'Amount of levels',
+                    description: 'Amount of levels (or "full")',
                     descriptionLocalizations: {
-                        'ru': `Количество уровней`,
-                        'uk': `Кількість рівнів`,
-                        'es-ES': `Cantidad de niveles`
+                        'ru': `Количество уровней (или "full")`,
+                        'uk': `Кількість рівнів (або "full")`,
+                        'es-ES': `Cantidad de niveles (o "full")`
                     },
-                    type: ApplicationCommandOptionType.Integer,
+                    type: ApplicationCommandOptionType.String,
                     required: true,
-                    min_value: 1,
-                    max_value: 100
+                    autocomplete: true
                 },
-                {
-                    name: 'user',
-                    nameLocalizations: {
-                        'ru': `user`,
-                        'uk': `user`,
-                        'es-ES': `usuario`
-                    },
-                    description: 'Target user',
-                    descriptionLocalizations: {
-                        'ru': `Целевой пользователь`,
-                        'uk': `Цільовий користувач`,
-                        'es-ES': `Usuario objetivo`
-                    },
-                    type: ApplicationCommandOptionType.User,
-                    required: false
-                },
-                ALL_USERS_OPTION
+                USER_OPTION
             ]
         },
         {
@@ -119,34 +87,17 @@ module.exports = {
                         'uk': `amount`,
                         'es-ES': `cantidad`
                     },
-                    description: 'Amount of season levels',
+                    description: 'Amount of season levels (or "full")',
                     descriptionLocalizations: {
-                        'ru': `Количество сезонных уровней`,
-                        'uk': `Кількість сезонних рівнів`,
-                        'es-ES': `Cantidad de niveles de temporada`
+                        'ru': `Количество сезонных уровней (или "full")`,
+                        'uk': `Кількість сезонних рівнів (або "full")`,
+                        'es-ES': `Cantidad de niveles de temporada (o "full")`
                     },
-                    type: ApplicationCommandOptionType.Integer,
+                    type: ApplicationCommandOptionType.String,
                     required: true,
-                    min_value: 1,
-                    max_value: 100
+                    autocomplete: true
                 },
-                {
-                    name: 'user',
-                    nameLocalizations: {
-                        'ru': `user`,
-                        'uk': `user`,
-                        'es-ES': `usuario`
-                    },
-                    description: 'Target user',
-                    descriptionLocalizations: {
-                        'ru': `Целевой пользователь`,
-                        'uk': `Цільовий користувач`,
-                        'es-ES': `Usuario objetivo`
-                    },
-                    type: ApplicationCommandOptionType.User,
-                    required: false
-                },
-                ALL_USERS_OPTION
+                USER_OPTION
             ]
         },
         {
@@ -171,19 +122,17 @@ module.exports = {
                         'uk': `amount`,
                         'es-ES': `cantidad`
                     },
-                    description: 'Amount of experience',
+                    description: 'Amount of experience (or "full")',
                     descriptionLocalizations: {
-                        'ru': `Количество опыта`,
-                        'uk': `Кількість досвіду`,
-                        'es-ES': `Cantidad de experiencia`
+                        'ru': `Количество опыта (или "full")`,
+                        'uk': `Кількість досвіду (або "full")`,
+                        'es-ES': `Cantidad de experiencia (o "full")`
                     },
-                    type: ApplicationCommandOptionType.Integer,
+                    type: ApplicationCommandOptionType.String,
                     required: true,
-                    min_value: 1,
-                    max_value: 100000
+                    autocomplete: true
                 },
-                USER_OPTION,
-                ALL_USERS_OPTION
+                USER_OPTION
             ]
         },
         {
@@ -208,19 +157,17 @@ module.exports = {
                         'uk': `amount`,
                         'es-ES': `cantidad`
                     },
-                    description: 'Amount of currency',
+                    description: 'Amount of currency (or "full")',
                     descriptionLocalizations: {
-                        'ru': `Количество валюты`,
-                        'uk': `Кількість валюти`,
-                        'es-ES': `Cantidad de moneda`
+                        'ru': `Количество валюты (или "full")`,
+                        'uk': `Кількість валюти (або "full")`,
+                        'es-ES': `Cantidad de moneda (o "full")`
                     },
-                    type: ApplicationCommandOptionType.Integer,
+                    type: ApplicationCommandOptionType.String,
                     required: true,
-                    min_value: 1,
-                    max_value: 1000000000
+                    autocomplete: true
                 },
-                USER_OPTION,
-                ALL_USERS_OPTION
+                USER_OPTION
             ]
         },
         {
@@ -245,19 +192,17 @@ module.exports = {
                         'uk': `amount`,
                         'es-ES': `cantidad`
                     },
-                    description: 'Amount of reputation',
+                    description: 'Amount of reputation (or "full")',
                     descriptionLocalizations: {
-                        'ru': `Количество репутации`,
-                        'uk': `Кількість репутації`,
-                        'es-ES': `Cantidad de reputación`
+                        'ru': `Количество репутации (или "full")`,
+                        'uk': `Кількість репутації (або "full")`,
+                        'es-ES': `Cantidad de reputación (o "full")`
                     },
-                    type: ApplicationCommandOptionType.Integer,
+                    type: ApplicationCommandOptionType.String,
                     required: true,
-                    min_value: 1,
-                    max_value: 1000
+                    autocomplete: true
                 },
-                USER_OPTION,
-                ALL_USERS_OPTION
+                USER_OPTION
             ]
         },
         {
@@ -282,19 +227,17 @@ module.exports = {
                         'uk': `amount`,
                         'es-ES': `cantidad`
                     },
-                    description: 'Amount of likes',
+                    description: 'Amount of likes (or "full")',
                     descriptionLocalizations: {
-                        'ru': `Количество лайков`,
-                        'uk': `Кількість лайків`,
-                        'es-ES': `Cantidad de me gusta`
+                        'ru': `Количество лайков (или "full")`,
+                        'uk': `Кількість лайків (або "full")`,
+                        'es-ES': `Cantidad de me gusta (o "full")`
                     },
-                    type: ApplicationCommandOptionType.Integer,
+                    type: ApplicationCommandOptionType.String,
                     required: true,
-                    min_value: 1,
-                    max_value: 1000
+                    autocomplete: true
                 },
-                USER_OPTION,
-                ALL_USERS_OPTION
+                USER_OPTION
             ]
         },
         {
@@ -372,14 +315,50 @@ module.exports = {
     cooldowns: new Collection(),
     run: async (client, interaction, args) => {
         await interaction.deferReply({ flags: ["Ephemeral"] })
-        const allUsers = args.all_users === true
+        const L = (textId) => client.language({ textId, guildId: interaction.guildId, locale: interaction.locale })
+        const userArg = String(args.user ?? "").trim()
+        const allUsers = /^all$/i.test(userArg)
         let member = null
+        let userId = null
         if (!allUsers) {
-            if (!args.user) return interaction.editReply({ content: `${client.config.emojis.NO} ${client.language({ textId: "Select a user or enable the All Users option", guildId: interaction.guildId, locale: interaction.locale })}` })
-            member = await interaction.guild.members.fetch(args.user).catch(e => null)
-            if (!member) return interaction.editReply({ content: `${client.config.emojis.NO} ${client.language({ textId: `User with ID`, guildId: interaction.guildId, locale: interaction.locale })} **${args.user}** ${client.language({ textId: `not found on server`, guildId: interaction.guildId, locale: interaction.locale })}.`})
-            if (member.user.bot)  return interaction.editReply({ content: `${client.config.emojis.NO} ${client.language({ textId: `You cannot use this command for a bot`, guildId: interaction.guildId, locale: interaction.locale })}.` })
+            if (!args.user) return interaction.editReply({ content: `${client.config.emojis.NO} ${L("Select a user or pick All Users")}` })
+            userId = userArg.replace(/[<@!>]/g, "")
+            if (/^\d{5,}$/.test(userId)) member = await interaction.guild.members.fetch(userId).catch(() => null)
+            if (!member) {
+                // Autocomplete returns IDs, but a typed name should still resolve
+                const q = userArg.toLowerCase()
+                member = interaction.guild.members.cache.find(m => !m.user.bot && (m.user.username.toLowerCase() === q || (m.displayName || "").toLowerCase() === q))
+                    || (await interaction.guild.members.fetch({ query: userArg, limit: 5 }).catch(() => null))?.find(m => !m.user.bot) || null
+            }
+            if (!member) return interaction.editReply({ content: `${client.config.emojis.NO} ${L(`User with ID`)} **${args.user}** ${L(`not found on server`)}.`})
+            if (member.user.bot)  return interaction.editReply({ content: `${client.config.emojis.NO} ${L(`You cannot use this command for a bot`)}.` })
+            userId = member.id
         }
+        // Amount: accepts a positive integer or "full" (entire current balance)
+        const rawAmount = String(args.amount ?? "").trim().toLowerCase()
+        const isFull = rawAmount === "full"
+        const amount = isFull ? null : Number(rawAmount)
+        const AMOUNT_LIMITS = { level: 100, season_level: 100, experience: 100000, reputation: 1000, currency: 1000000000, likes: 1000 }
+        if (args.Subcommand !== "role") {
+            const limit = AMOUNT_LIMITS[args.Subcommand]
+            if (!isFull && (!Number.isInteger(amount) || amount < 1 || amount > limit)) {
+                return interaction.editReply({ content: `${client.config.emojis.NO} ${L("Amount must be an integer from 1 to")} **${(limit || 0).toLocaleString()}** ${L("or")} \`full\`` })
+            }
+        }
+        // "full" resolves per-profile to whatever the user currently has
+        const fullAmount = (p) => {
+            switch (args.Subcommand) {
+                case "level": return Math.max(p.level || 0, 0)
+                case "season_level": return Math.max(p.seasonLevel || 0, 0)
+                case "experience": return Math.max(p.xp || 0, 0)
+                case "reputation": return Math.max(p.rp || 0, 0)
+                case "currency": return Math.max(p.currency || 0, 0)
+                case "likes": return Math.max(p.likes || 0, 0)
+            }
+            return 0
+        }
+        const amountOf = (p) => isFull ? fullAmount(p) : amount
+        const amountLabel = (p) => isFull ? `\`full\` (${(p ? fullAmount(p) : 0).toLocaleString()})` : `(${amount.toLocaleString()})`
         // Guild-wide application: walks every non-bot member, applies `fn`
         // to their profile, reports progress, returns the affected count.
         async function applyToAllUsers(label, fn) {
@@ -403,56 +382,59 @@ module.exports = {
             }
             return done
         }
-        const profile = member ? await client.functions.fetchProfile(client, args.user, interaction.guildId) : null
+        const profile = member ? await client.functions.fetchProfile(client, userId, interaction.guildId) : null
         if (allUsers) {
             const settingsAll = args.Subcommand === "currency" ? (client.cache.settings.get(interaction.guildId) || await client.functions.fetchSettings(client, interaction.guildId)) : null
             const labels = {
-                level: `🎖${client.language({ textId: "Level", guildId: interaction.guildId, locale: interaction.locale })}`,
-                season_level: `${client.config.emojis.seasonLevel}${client.language({ textId: "Season level", guildId: interaction.guildId, locale: interaction.locale })}`,
-                experience: `${client.config.emojis.XP}${client.language({ textId: "XP", guildId: interaction.guildId, locale: interaction.locale })}`,
-                reputation: `${client.config.emojis.RP}${client.language({ textId: "Reputation", guildId: interaction.guildId, locale: interaction.locale })}`,
+                level: `🎖${L("Level")}`,
+                season_level: `${client.config.emojis.seasonLevel}${L("Season level")}`,
+                experience: `${client.config.emojis.XP}${L("XP")}`,
+                reputation: `${client.config.emojis.RP}${L("Reputation")}`,
                 currency: settingsAll ? `${settingsAll.displayCurrencyEmoji}${settingsAll.currencyName}` : `currency`,
                 likes: `${client.config.emojis.heart}`
             }
             const fns = {
-                level: (p) => p.subtractLevel(args.amount, true),
-                season_level: (p) => p.subtractSeasonLevel(args.amount, true),
-                experience: (p) => p.subtractXp(args.amount, true),
-                reputation: (p) => { if (p.rp - args.amount < -1000) throw new Error("rp floor"); return p.subtractRp(args.amount, true) },
-                currency: (p) => p.subtractCurrency(args.amount, true, true),
-                likes: (p) => { p.likes = -args.amount; return p.save() }
+                level: (p) => p.subtractLevel(amountOf(p), true),
+                season_level: (p) => p.subtractSeasonLevel(amountOf(p), true),
+                experience: (p) => p.subtractXp(amountOf(p), true),
+                reputation: (p) => { if (p.rp - amountOf(p) < -1000) throw new Error("rp floor"); return p.subtractRp(amountOf(p), true) },
+                currency: (p) => p.subtractCurrency(amountOf(p), true, true),
+                likes: (p) => { p.likes -= amountOf(p); return p.save() }
             }
             const fn = fns[args.Subcommand]
-            if (!fn) return interaction.editReply({ content: `${client.config.emojis.NO} ${client.language({ textId: "All Users is not supported for this subcommand", guildId: interaction.guildId, locale: interaction.locale })}` })
-            const count = await applyToAllUsers(`${labels[args.Subcommand]} (${args.amount.toLocaleString()})`, fn)
-            return interaction.editReply({ content: `${client.config.emojis.YES} ${labels[args.Subcommand]} (${args.amount.toLocaleString()}) ${client.language({ textId: `was reduced`, guildId: interaction.guildId, locale: interaction.locale })} — ${client.language({ textId: "users", guildId: interaction.guildId, locale: interaction.locale })}: ${count.toLocaleString()}` })
+            if (!fn) return interaction.editReply({ content: `${client.config.emojis.NO} ${L("All Users is not supported for this subcommand")}` })
+            const label = `${labels[args.Subcommand]} ${isFull ? `(\`full\`)` : `(${amount.toLocaleString()})`}`
+            const count = await applyToAllUsers(label, fn)
+            return interaction.editReply({ content: `${client.config.emojis.YES} ${label} ${L(`was reduced`)} — ${L("users")}: ${count.toLocaleString()}` })
         }
+        const amt = amountOf(profile)
+        const display = amountLabel(profile)
         if (args.Subcommand === "level") {
-            await profile.subtractLevel(args.amount, true)
-            return interaction.editReply({ content: `${client.config.emojis.YES} 🎖${client.language({ textId: "Level", guildId: interaction.guildId, locale: interaction.locale })} (${args.amount.toLocaleString()}) ${client.language({ textId: `was reduced`, guildId: interaction.guildId, locale: interaction.locale })} <@${args.user}>` })  
+            await profile.subtractLevel(amt, true)
+            return interaction.editReply({ content: `${client.config.emojis.YES} 🎖${L("Level")} ${display} ${L(`was reduced`)} <@${userId}>` })
         }
         if (args.Subcommand === "season_level") {
-            await profile.subtractSeasonLevel(args.amount, true)
-            return interaction.editReply({ content: `${client.config.emojis.YES} ${client.config.emojis.seasonLevel}${client.language({ textId: "Season level", guildId: interaction.guildId, locale: interaction.locale })} (${args.amount.toLocaleString()}) ${client.language({ textId: `was reduced`, guildId: interaction.guildId, locale: interaction.locale })} <@${args.user}>` })  
+            await profile.subtractSeasonLevel(amt, true)
+            return interaction.editReply({ content: `${client.config.emojis.YES} ${client.config.emojis.seasonLevel}${L("Season level")} ${display} ${L(`was reduced`)} <@${userId}>` })
         }
         if (args.Subcommand === "experience") {
-            await profile.subtractXp(args.amount, true)
-            return interaction.editReply({ content: `${client.config.emojis.YES} ${client.config.emojis.XP}**${client.language({ textId: "XP", guildId: interaction.guildId, locale: interaction.locale })}** (${args.amount.toLocaleString()}) ${client.language({ textId: `was reduced`, guildId: interaction.guildId, locale: interaction.locale })} <@${args.user}>` })
+            await profile.subtractXp(amt, true)
+            return interaction.editReply({ content: `${client.config.emojis.YES} ${client.config.emojis.XP}**${L("XP")}** ${display} ${L(`was reduced`)} <@${userId}>` })
         }
         if (args.Subcommand === "reputation") {
-            if (profile.rp - args.amount < -1000) return interaction.editReply({ content: `${client.config.emojis.NO} ${client.language({ textId: `User reputation should not be less than -1000`, guildId: interaction.guildId, locale: interaction.locale })}` })
-            await profile.subtractRp(args.amount, true)
-            return interaction.editReply({ content: `${client.config.emojis.YES} ${client.config.emojis.RP}**${client.language({ textId: "Reputation", guildId: interaction.guildId, locale: interaction.locale })}** (${args.amount.toLocaleString()}) ${client.language({ textId: `was reduced`, guildId: interaction.guildId, locale: interaction.locale })} <@${args.user}>` })
+            if (profile.rp - amt < -1000) return interaction.editReply({ content: `${client.config.emojis.NO} ${L(`User reputation should not be less than -1000`)}` })
+            await profile.subtractRp(amt, true)
+            return interaction.editReply({ content: `${client.config.emojis.YES} ${client.config.emojis.RP}**${L("Reputation")}** ${display} ${L(`was reduced`)} <@${userId}>` })
         }
         if (args.Subcommand === "currency") {
             const settings = client.cache.settings.get(interaction.guildId) || await client.functions.fetchSettings(client, interaction.guildId)
-            await profile.subtractCurrency(args.amount, true, true)
-            return interaction.editReply({ content: `${client.config.emojis.YES} ${settings.displayCurrencyEmoji}**${settings.currencyName}** (${args.amount.toLocaleString()}) ${client.language({ textId: `was reduced`, guildId: interaction.guildId, locale: interaction.locale })} <@${args.user}>` })
+            await profile.subtractCurrency(amt, true, true)
+            return interaction.editReply({ content: `${client.config.emojis.YES} ${settings.displayCurrencyEmoji}**${settings.currencyName}** ${display} ${L(`was reduced`)} <@${userId}>` })
         }
         if (args.Subcommand === "likes") {
-            profile.likes -= args.amount
+            profile.likes -= amt
             await profile.save().catch(err => console.error(`Failed to save profile ${profile.userID}:`, err))
-            return interaction.editReply({ content: `${client.config.emojis.YES} ${client.config.emojis.heart}️${args.amount.toLocaleString()} ${client.language({ textId: `was reduced`, guildId: interaction.guildId, locale: interaction.locale })} <@${args.user}>` })
+            return interaction.editReply({ content: `${client.config.emojis.YES} ${client.config.emojis.heart}️${display} ${L(`was reduced`)} <@${userId}>` })
         }
         if (args.Subcommand === "role") {
             const inventoryRole = profile.inventoryRoles?.find(e => e.uniqId === args.role)
