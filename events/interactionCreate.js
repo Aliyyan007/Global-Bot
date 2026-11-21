@@ -28,6 +28,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         }
         await handleInteraction(interaction)
     } catch (error) {
+        console.error(`[Interaction] FAILED type=${interaction.type} customId=${interaction.customId || interaction.commandName || '?'} replied=${interaction.replied} deferred=${interaction.deferred}`)
         handleError(error, { ownerId: client.config.discord.ownerId, context: 'InteractionCreate Event' })
         // Dead interactions (expired token / already acked) can't be
         // responded to — any reply attempt would just throw again.

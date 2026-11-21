@@ -130,9 +130,10 @@ module.exports = {
         const first_row = new ActionRowBuilder().addComponents([new StringSelectMenuBuilder().setCustomId(`mbr{${member.user.id}}cmd{user-activities} select usr{${interaction.user.id}}`).addOptions(menu_options).setMaxValues(menu_options.length).setPlaceholder(`${client.language({ textId: "Select up to", guildId: interaction.guildId, locale: interaction.locale })} ${menu_options.length} ${client.language({ textId: "values", guildId: interaction.guildId, locale: interaction.locale })}`)])
         if (interaction.isChatInputCommand()) return interaction.reply({ embeds: [embed], components: [first_row] })
         else {
-            await interaction.message.edit({ embeds: [embed], components: [first_row] })
-            if (!interaction.deferred) return await interaction.deferUpdate()
-            else return
+            // Acknowledge via the interaction, then edit — message.edit on a
+            // deleted/ephemeral message 404s, and editReply before ack throws.
+            if (interaction.replied || interaction.deferred) return interaction.editReply({ embeds: [embed], components: [first_row] }).catch(() => null)
+            return interaction.update({ embeds: [embed], components: [first_row] }).catch(() => null)
         }
     }
 }

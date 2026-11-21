@@ -88,7 +88,7 @@ module.exports = {
             await interaction.message.edit({
                 embeds: [embed],
                 components: [new ActionRowBuilder().addComponents(backMenu)]
-            })
+            }).catch(() => null)
         } else {
             // Group remaining by channel
             const channelGroups = new Map()
@@ -158,7 +158,7 @@ module.exports = {
                     new ActionRowBuilder().addComponents(selectMenu),
                     new ActionRowBuilder().addComponents(cancelButton)
                 ]
-            })
+            }).catch(() => null)
         }
         
         // Process removals in background (after user sees success)

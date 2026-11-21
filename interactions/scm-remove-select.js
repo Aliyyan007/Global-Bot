@@ -222,8 +222,8 @@ function buildRemoveCommandSelection(client, interaction, channelId, channelConf
         .setCustomId('cmd{scm_remove_cmd_select}')
         .setPlaceholder('🗑️ Select commands to remove')
         .setMinValues(1)
-        .setMaxValues(commandOptions.length)
-        .addOptions(commandOptions)
+        .setMaxValues(Math.min(commandOptions.length, 25))
+        .addOptions(commandOptions.slice(0, 25))
     
     components.push(new ActionRowBuilder().addComponents(commandSelect))
     

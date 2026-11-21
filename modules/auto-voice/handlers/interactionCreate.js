@@ -25,6 +25,34 @@ const rateLimitTracker = require('../voice/utils/rateLimitTracker');
 // Map<channelId, Set<userId>>
 const currentRejections = new Map();
 
+// Pending user selections for invite/reject flows.
+// CustomIds are capped at 100 chars, so multi-user selections can't be embedded
+// in them. Store the array under a short token and carry the token instead.
+// Map<token, { userIds: string[], expiresAt: number }>
+const pendingSelections = new Map();
+
+function storeSelection(userIds) {
+  const token = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+  pendingSelections.set(token, { userIds: [...userIds], expiresAt: Date.now() + 15 * 60 * 1000 });
+  if (pendingSelections.size > 500) {
+    const now = Date.now();
+    for (const [k, v] of pendingSelections) {
+      if (v.expiresAt < now) pendingSelections.delete(k);
+    }
+  }
+  return token;
+}
+
+function resolveSelection(tokenOrIds) {
+  const entry = pendingSelections.get(tokenOrIds);
+  if (entry) {
+    pendingSelections.delete(tokenOrIds);
+    return entry.userIds;
+  }
+  // Backward-compat fallback: a raw comma-joined id list still resolves.
+  return String(tokenOrIds || '').split(',').filter(Boolean);
+}
+
 /**
  * Start a rate limit countdown on the control panel
  * Uses Discord's live timestamp format for automatic countdown display
@@ -5545,7 +5573,7 @@ async function handleTextModalSubmit(interaction, voiceChannelId) {
  */
 async function showInviteOptionsPanel(interaction, channelId, ownerId, selectedUsers) {
   try {
-    const userIdsStr = selectedUsers.join(',');
+    const userIdsStr = storeSelection(selectedUsers);
     const stickyEnabled = stickyNotes.isEnabled(channelId);
     
     // Build a panel with invite options
@@ -6275,7 +6303,7 @@ function setupAutoRevert(interaction, channelId, ownerId, ...customIdPrefixes) {
  */
 async function showRejectOptionsPanel(interaction, channelId, ownerId, selectedUsers, isCurrent = false) {
   try {
-    const userIdsStr = selectedUsers.join(',');
+    const userIdsStr = storeSelection(selectedUsers);
     const stickyEnabled = stickyNotes.isEnabled(channelId);
     
     // Build a panel with reject options
@@ -6353,8 +6381,9 @@ async function handleRejectWithReasonButton(interaction, channelId, ownerId, use
  */
 async function handleRejectWithoutReasonButton(interaction, channelId, ownerId, userIdsStr, isCurrent) {
   if (!await verifyOwnership(interaction, channelId, ownerId)) return;
-  
-  const userId = userIdsStr; // Only 1 user at a time now
+
+  const userIds = resolveSelection(userIdsStr);
+  const userId = userIds[0]; // Only 1 user at a time now
   const shouldDisconnect = isCurrent === '1';
   const stickyEnabled = stickyNotes.isEnabled(channelId);
   const latestMessageUrl = getLatestMessageUrl(channelId);
@@ -6453,8 +6482,8 @@ async function handleInviteWithNoteButton(interaction, channelId, ownerId, userI
  */
 async function handleInviteWithoutNoteButton(interaction, channelId, ownerId, userIdsStr) {
   if (!await verifyOwnership(interaction, channelId, ownerId)) return;
-  
-  const userIds = userIdsStr.split(',');
+
+  const userIds = resolveSelection(userIdsStr);
   const stickyEnabled = stickyNotes.isEnabled(channelId);
   
   try {
@@ -6555,7 +6584,7 @@ async function handleInviteWithoutNoteButton(interaction, channelId, ownerId, us
 
 async function handleInviteModalSubmit(interaction, channelId, userIdsStr) {
   const note = interaction.fields.getTextInputValue('invite_note') || '';
-  const userIds = userIdsStr.split(',');
+  const userIds = resolveSelection(userIdsStr);
   
   try {
     const channel = await interaction.guild.channels.fetch(channelId);
@@ -6663,7 +6692,7 @@ async function handleRejectModalSubmit(interaction, channelId, userIdsStr, isCur
   const reason = interaction.fields.getTextInputValue('reject_reason') || '';
   const shouldDisconnect = isCurrent === '1';
   
-  const userId = userIdsStr; // Only 1 user at a time now
+  const userId = resolveSelection(userIdsStr)[0]; // Only 1 user at a time now
   const ownerId = dataStore.getChannelOwner(channelId);
   
   // Check if target user has elevated permissions (Admin, Ban Members, Kick Members)

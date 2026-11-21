@@ -11,22 +11,26 @@ module.exports = {
         }
         const settings = client.cache.settings.get() || await client.functions.fetchSettings(client, )
         if (interaction.customId.includes("accept")) {
+            // Acknowledge first — role creation + profile writes can outrun
+            // the 3s component window and leave the button hanging.
+            await interaction.deferUpdate().catch(() => null)
             const member = await interaction.guild.members.fetch(customRole.userID).catch(e => null)
             if (member) {
-                const position = interaction.guild.roles.cache.get(settings.roles.customRolePosition).position
+                const positionRole = interaction.guild.roles.cache.get(settings.roles.customRolePosition)
                 const role = await interaction.guild.roles.create({
                     name: customRole.name,
                     color: customRole.color || undefined,
                     reason: 'Custom role',
                     hoist: settings.customRoleHoist,
-                    position: position,
+                    position: positionRole ? positionRole.position : undefined,
                     icon: (interaction.guild.premiumTier === GuildPremiumTier.Tier2 || interaction.guild.premiumTier === GuildPremiumTier.Tier3) && customRole.icon !== customRole.displayIcon ? customRole.iconURL : undefined,
                     unicodeEmoji: (interaction.guild.premiumTier === GuildPremiumTier.Tier2 || interaction.guild.premiumTier === GuildPremiumTier.Tier3) && customRole.icon === customRole.displayIcon ? customRole.icon : undefined
                 })
                 const profile = await client.functions.fetchProfile(client, customRole.userID, interaction.guildId)
                 profile.addRole(role.id, 1, customRole.minutes && customRole.minutes !== Infinity ? customRole.minutes * 60 * 1000 : undefined)
                 await profile.save()
-                member.send({ embeds: [new EmbedBuilder().setThumbnail(interaction.guild.iconURL()).setColor(3093046).setTitle(interaction.guild.name).setDescription(`${client.language({ textId: "You are allowed to create custom role", guildId: interaction.guildId })}. ${client.language({ textId: "Role", guildId: interaction.guildId })} ${role.name} ${client.language({ textId: "added to inventory (/inventory-roles)", guildId: interaction.guildId })}`)] })
+                // DM is best-effort — a user with closed DMs must not abort the flow
+                member.send({ embeds: [new EmbedBuilder().setThumbnail(interaction.guild.iconURL()).setColor(3093046).setTitle(interaction.guild.name).setDescription(`${client.language({ textId: "You are allowed to create custom role", guildId: interaction.guildId })}. ${client.language({ textId: "Role", guildId: interaction.guildId })} ${role.name} ${client.language({ textId: "added to inventory (/inventory-roles)", guildId: interaction.guildId })}`)] }).catch(() => null)
                 if (settings.customRoleProperties?.length) {
                     const properties = {}
                     settings.customRoleProperties.forEach(e => properties[e] = true )
@@ -45,7 +49,7 @@ module.exports = {
             } else {
                 await customRole.delete()
             }
-            return interaction.update({ components: [new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId("0").setDisabled(true).setLabel(`${client.language({ textId: "ALLOWED", guildId: interaction.guildId, locale: interaction.locale })}`).setStyle(ButtonStyle.Success))] })
+            return interaction.editReply({ components: [new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId("0").setDisabled(true).setLabel(`${client.language({ textId: "ALLOWED", guildId: interaction.guildId, locale: interaction.locale })}`).setStyle(ButtonStyle.Success))] })
         }
         if (interaction.customId.includes("decline")) {
             const member = await interaction.guild.members.fetch(customRole.userID).catch(e => null)
@@ -68,9 +72,12 @@ module.exports = {
                 const filter = (i) => i.customId === `decline_${interaction.id}` && i.user.id === interaction.user.id
                 interaction = await interaction.awaitModalSubmit({ filter, time: 60000 }).catch(e => null)
                 if (interaction) {
+                    // Acknowledge the modal submit — the profile/reward work
+                    // below can exceed the 3s ack window.
+                    await interaction.deferUpdate().catch(() => null)
                     const modalArgs = {}
                     interaction.fields.fields.each(field => modalArgs[field.customId] = field.value)
-                    member.send({ embeds: [new EmbedBuilder().setThumbnail(interaction.guild.iconURL()).setColor(3093046).setTitle(interaction.guild.name).setDescription(`${client.language({ textId: "You were denied custom role creation, reason", guildId: interaction.guildId })}: **${modalArgs.reason}**`)] })
+                    member.send({ embeds: [new EmbedBuilder().setThumbnail(interaction.guild.iconURL()).setColor(3093046).setTitle(interaction.guild.name).setDescription(`${client.language({ textId: "You were denied custom role creation, reason", guildId: interaction.guildId })}: **${modalArgs.reason}**`)] }).catch(() => null)
                 } else return
                 const profile = await client.functions.fetchProfile(client, customRole.userID, interaction.guildId)
                 if (customRole.minutes === Infinity && settings.customRolePrice.length) {
@@ -109,7 +116,9 @@ module.exports = {
                 }
             }
             await customRole.delete()
-            return interaction.update({ components: [new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId("0").setDisabled(true).setLabel(`${client.language({ textId: "NOT ALLOWED", guildId: interaction.guildId, locale: interaction.locale })}`).setStyle(ButtonStyle.Danger))] })
+            const declinePayload = { components: [new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId("0").setDisabled(true).setLabel(`${client.language({ textId: "NOT ALLOWED", guildId: interaction.guildId, locale: interaction.locale })}`).setStyle(ButtonStyle.Danger))] }
+            if (interaction.replied || interaction.deferred) return interaction.editReply(declinePayload)
+            return interaction.update(declinePayload)
         }
     }
 }

@@ -62,13 +62,41 @@ async function get(url, headers = {}) {
  * @param {Object} payload - The webhook payload (content, embeds, etc.)
  * @returns {Promise<boolean>} - True if successful
  */
+function sanitizeEmbed(embed) {
+    if (!embed || typeof embed !== 'object') return embed
+    if (typeof embed.title === 'string' && embed.title.length > 256) embed.title = embed.title.slice(0, 256)
+    if (typeof embed.description === 'string' && embed.description.length > 4096) embed.description = embed.description.slice(0, 4096)
+    if (typeof embed.author?.name === 'string' && embed.author.name.length > 256) embed.author.name = embed.author.name.slice(0, 256)
+    if (typeof embed.footer?.text === 'string' && embed.footer.text.length > 2048) embed.footer.text = embed.footer.text.slice(0, 2048)
+    if (Array.isArray(embed.fields)) {
+        if (embed.fields.length > 25) embed.fields = embed.fields.slice(0, 25)
+        for (const field of embed.fields) {
+            if (!field || typeof field !== 'object') continue
+            if (typeof field.name === 'string' && field.name.length > 256) field.name = field.name.slice(0, 256)
+            if (typeof field.value === 'string' && field.value.length > 1024) field.value = field.value.slice(0, 1024)
+            if (!field.value) field.value = '​'
+        }
+    }
+    return embed
+}
+
+function sanitizeWebhookPayload(payload) {
+    if (!payload || typeof payload !== 'object') return payload
+    const out = { ...payload }
+    if (typeof out.content === 'string' && out.content.length > 2000) out.content = out.content.slice(0, 2000)
+    if (Array.isArray(out.embeds)) {
+        out.embeds = out.embeds.slice(0, 10).map(e => sanitizeEmbed(e && typeof e.toJSON === 'function' ? e.toJSON() : e))
+    }
+    return out
+}
+
 async function sendWebhook(webhookUrl, payload) {
     if (!webhookUrl) return false
     
     try {
         const response = await fetch(webhookUrl, {
             method: 'POST',
-            body: JSON.stringify(payload),
+            body: JSON.stringify(sanitizeWebhookPayload(payload)),
             headers: {
                 'Content-Type': 'application/json'
             }

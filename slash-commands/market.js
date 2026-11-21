@@ -908,11 +908,11 @@ module.exports = {
                             sellingItem = `${role?.name || lot.item.id}${lot.item.ms ? ` [${client.functions.transformSecs(client, lot.item.ms, interaction.guildId, interaction.locale)}]` : ``} (${lot.item.amount.toLocaleString()})`
                         }
                         return {
-                            label: `${lots_raw.findIndex(i => i.lotID === lot.lotID)+1}. ${sellingItem}`,
+                            label: `${lots_raw.findIndex(i => i.lotID === lot.lotID)+1}. ${sellingItem}`.slice(0, 100),
                             emoji: lot.item.type === RewardType.Item ? client.cache.items.find(e => !e.temp && e.itemID === lot.item.id && e.enabled)?.displayEmoji : undefined,
-                            description: `${interaction.guild.members.cache.get(lot.userID)?.displayName || client.users.cache.get(lot.userID)?.username} | ${lot.lotID}`,
+                            description: `${interaction.guild.members.cache.get(lot.userID)?.displayName || client.users.cache.get(lot.userID)?.username} | ${lot.lotID}`.slice(0, 100),
                             value: lot.lotID
-                        }    
+                        }
                     }
                 }).filter(e => e))))
             }
@@ -929,11 +929,11 @@ module.exports = {
                             sellingItem = `${role?.name || lot.item.id}${lot.item.ms ? ` [${client.functions.transformSecs(client, lot.item.ms, interaction.guildId, interaction.locale)}]` : ``} (${lot.item.amount.toLocaleString()})`
                         }
                         return {
-                            label: `${lots_raw.findIndex(i => i.lotID === lot.lotID)+1}. ${sellingItem}`,
+                            label: `${lots_raw.findIndex(i => i.lotID === lot.lotID)+1}. ${sellingItem}`.slice(0, 100),
                             emoji: lot.item.type === RewardType.Item ? client.cache.items.find(e => !e.temp && e.itemID === lot.item.id && e.enabled)?.displayEmoji : undefined,
-                            description: `${interaction.guild.members.cache.get(lot.userID)?.displayName || client.users.cache.get(lot.userID)?.username} | ${lot.lotID}`,
+                            description: `${interaction.guild.members.cache.get(lot.userID)?.displayName || client.users.cache.get(lot.userID)?.username} | ${lot.lotID}`.slice(0, 100),
                             value: lot.lotID
-                        }    
+                        }
                     }
                 }).filter(e => e))))
             }

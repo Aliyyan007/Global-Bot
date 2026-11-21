@@ -134,7 +134,7 @@ module.exports = {
                 await interaction.message.edit({
                     embeds: [embed],
                     components: [first_row, second_row]
-                })
+                }).catch(() => null)
             } else {
                 // No more configs, show empty state
                 embed.addFields({
@@ -192,14 +192,16 @@ module.exports = {
                 await interaction.message.edit({
                     embeds: [embed],
                     components: [first_row]
-                })
+                }).catch(() => null)
             }
         } catch (error) {
             console.error('[TempRole] Error removing config:', error)
-            await interaction.reply({
+            // The interaction was already replied to earlier — use followUp,
+            // a second reply() throws InteractionAlreadyReplied.
+            await interaction.followUp({
                 content: client.config.emojis.NO + ` Failed to remove configuration: ${error.message}`,
                 flags: ['Ephemeral']
-            })
+            }).catch(() => null)
         }
     }
 }

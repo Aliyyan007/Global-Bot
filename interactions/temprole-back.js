@@ -78,6 +78,6 @@ module.exports = {
         await interaction.message.edit({
             embeds: [embed],
             components: [row]
-        })
+        }).catch(() => null)
     }
 }

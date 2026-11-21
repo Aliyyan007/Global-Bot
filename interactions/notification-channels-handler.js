@@ -246,7 +246,7 @@ async function handleNotificationChannelInteraction(client, interaction) {
         
         // Ephemeral channel selection (with panel refresh)
         if (customId.startsWith('notif_channel_eph_')) {
-            if (interaction.isChannelSelectMenu && interaction.values && interaction.values.length > 0) {
+            if (interaction.isChannelSelectMenu() && interaction.values && interaction.values.length > 0) {
                 const remaining = customId.replace('notif_channel_eph_', '');
                 const lastUnderscoreIndex = remaining.lastIndexOf('_');
                 const type = remaining.substring(0, lastUnderscoreIndex);
@@ -557,7 +557,7 @@ async function handleNotificationChannelInteraction(client, interaction) {
         
         // Ephemeral channel selection for default message (with panel refresh)
         if (customId.startsWith('notif_channel_default_eph_')) {
-            if (interaction.isChannelSelectMenu && interaction.values && interaction.values.length > 0) {
+            if (interaction.isChannelSelectMenu() && interaction.values && interaction.values.length > 0) {
                 const remaining = customId.replace('notif_channel_default_eph_', '');
                 const lastUnderscoreIndex = remaining.lastIndexOf('_');
                 const type = remaining.substring(0, lastUnderscoreIndex);
@@ -707,7 +707,7 @@ async function handleNotificationChannelInteraction(client, interaction) {
         
         // Channel selection
         if (customId.startsWith('notif_channel_')) {
-            if (interaction.isChannelSelectMenu && interaction.values && interaction.values.length > 0) {
+            if (interaction.isChannelSelectMenu() && interaction.values && interaction.values.length > 0) {
                 const channelId = interaction.values[0];
                 
                 if (customId.startsWith('notif_channel_default_')) {

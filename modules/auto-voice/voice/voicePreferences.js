@@ -58,12 +58,23 @@ async function initialize() {
   }
   
   try {
-    // Create connection and wait for it to be ready
-    autoVoiceConnection = await mongoose.createConnection(mongoUri, {
-      dbName: 'autovoice',
-      serverSelectionTimeoutMS: 5000,
-      socketTimeoutMS: 45000,
-    }).asPromise();
+    // Create connection and wait for it to be ready. 5s server selection
+    // was too tight for a cold SRV lookup — a slow first connect silently
+    // disabled every voice-preferences save. Give it room, retry once.
+    let lastError = null;
+    for (const timeoutMs of [20000, 30000]) {
+      try {
+        autoVoiceConnection = await mongoose.createConnection(mongoUri, {
+          dbName: 'autovoice',
+          serverSelectionTimeoutMS: timeoutMs,
+          socketTimeoutMS: 45000,
+        }).asPromise();
+        break;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    if (!autoVoiceConnection) throw lastError;
     
     VoicePreferencesModel = autoVoiceConnection.model('voicepreferences', voicePreferencesSchema);
     

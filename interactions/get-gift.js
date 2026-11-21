@@ -94,7 +94,7 @@ module.exports = {
         				iconURL: interaction.member?.displayAvatarURL() || interaction.user.displayAvatarURL() 
         			})
         			.setTitle(gift.giftName)
-        			.setDescription(`${gift.comment || `${client.language({ textId: "You received", guildId: interaction.guildId, locale: interaction.locale })}:`}\n${received_items.join("\n")}${(!gift.maxCount || member.count < gift.maxCount) && gift.cooldown ? `\n${client.language({ textId: "Next gift", guildId: interaction.guildId, locale: interaction.locale })}: <t:${Math.floor((Date.now() + gift.cooldown)/1000)}:R>` : ""}`)
+        			.setDescription(`${gift.comment || `${client.language({ textId: "You received", guildId: interaction.guildId, locale: interaction.locale })}:`}\n${received_items.join("\n")}${(!gift.maxCount || member.count < gift.maxCount) && gift.cooldown ? `\n${client.language({ textId: "Next gift", guildId: interaction.guildId, locale: interaction.locale })}: <t:${Math.floor((Date.now() + gift.cooldown)/1000)}:R>` : ""}`.slice(0, 4096))
         			.setImage(gift.image || null)
         			.setThumbnail(gift.thumbnail || null)
     		],

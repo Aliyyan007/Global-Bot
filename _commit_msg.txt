@@ -1,0 +1,24 @@
+Fix interaction lifecycle crashes and Discord API limit violations
+
+- manager-settings: modal-timeout fallthroughs now return early instead of
+  editReply on a showModal-consumed interaction (bio/fishing/mining edits)
+- auto-voice: invite/reject customIds exceeded 100 chars with 3+ users;
+  selections now stored server-side under a short token
+- createCustomRole: deferUpdate before role/DB work (was work-before-ack),
+  DM sends no longer abort the flow, decline path uses editReply
+- temprole/scm-remove-confirm/user-activities: guard edits of deleted
+  messages and fix update ordering
+- sendWebhook: centrally cap embed field values (1024), descriptions (4096),
+  content (2000), titles (256) - fixes ~64 audit-log overflow sites
+- select menus: cap maxValues/options at 25 (manager-settings panel delete,
+  mod-remove-manager-roles, scm-remove-select, quest rewards/targets)
+- market: truncate select option labels/descriptions to 100 chars
+- get-gift: cap claim embed description at 4096
+- voicePreferences: raise serverSelectionTimeoutMS (local boot no longer
+  fails on slow DNS) with connect retry
+- notification-channels-handler: add missing () to isChannelSelectMenu
+- interactionCreate boundary: log customId/guild/user/type context on errors
+
+Generated with [Devin](https://devin.ai)
+
+Co-Authored-By: Devin <158243242+devin-ai-integration[bot]@users.noreply.github.com>

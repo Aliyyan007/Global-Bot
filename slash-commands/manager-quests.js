@@ -1613,9 +1613,9 @@ module.exports = {
                                 .setStringSelectMenuComponent(
                                     new StringSelectMenuBuilder()
                                         .setCustomId(`rewards`)
-                                        .setMaxValues(quest.rewards.length)
+                                        .setMaxValues(Math.min(quest.rewards.length, 25))
                                         .setRequired(true)
-                                        .setOptions(quest.rewards.map((reward, index) => {
+                                        .setOptions(quest.rewards.slice(0, 25).map((reward, index) => {
                                             let label
                                             let emoji
                                             let value
@@ -1713,9 +1713,9 @@ module.exports = {
                                 .setStringSelectMenuComponent(
                                     new StringSelectMenuBuilder()
                                         .setCustomId(`targets`)
-                                        .setMaxValues(quest.targets.length)
+                                        .setMaxValues(Math.min(quest.targets.length, 25))
                                         .setRequired(true)
-                                        .setOptions(quest.targets.map((target, index) => {
+                                        .setOptions(quest.targets.slice(0, 25).map((target, index) => {
                                             return {
                                                 label: quest.getDescription(target, interaction.locale).slice(0, 45),
                                                 value: `${index}`

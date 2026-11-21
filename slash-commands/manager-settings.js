@@ -161,8 +161,9 @@ module.exports = {
                             )
                         await interaction.showModal(modal);delete client.globalCooldown[`${interaction.guildId}_${interaction.user.id}`]
                         const filter = (i) => i.customId === `bio_${interaction.id}` && i.user.id === interaction.user.id
-                        interaction = await interaction.awaitModalSubmit({ filter, time: 120000 }).catch(e => interaction)
-                        if (interaction && interaction.type === InteractionType.ModalSubmit) {
+                        interaction = await interaction.awaitModalSubmit({ filter, time: 120000 }).catch(() => null)
+                        if (!interaction || interaction.type !== InteractionType.ModalSubmit) return
+                        {
                             const modalArgs = {}
                             interaction.fields.fields.each(field => modalArgs[field.customId] = field.value)
                             await interaction.guild.members.editMe({
@@ -1243,8 +1244,9 @@ module.exports = {
                         ])
                     await interaction.showModal(modal);delete client.globalCooldown[`${interaction.guildId}_${interaction.user.id}`]
                     const filter = (i) => i.customId === `fishing_edit_${interaction.id}` && i.user.id === interaction.user.id
-                    interaction = await interaction.awaitModalSubmit({ filter, time: 180000 }).catch(e => interaction)
-                    if (interaction && interaction.isModalSubmit()) {
+                    interaction = await interaction.awaitModalSubmit({ filter, time: 180000 }).catch(() => null)
+                    if (!interaction || !interaction.isModalSubmit()) return
+                    {
                         const modalArgs = {}
                         interaction.fields.fields.each(field => modalArgs[field.customId] = field.value)
                         if (modalArgs.bait.toLowerCase() === settings.currencyName.toLowerCase()) settings.baitCurrency = "currency"
@@ -1343,8 +1345,9 @@ module.exports = {
                         ])
                     await interaction.showModal(modal);delete client.globalCooldown[`${interaction.guildId}_${interaction.user.id}`]
                     const filter = (i) => i.customId === `mining_edit_${interaction.id}` && i.user.id === interaction.user.id
-                    interaction = await interaction.awaitModalSubmit({ filter, time: 180000 }).catch(e => interaction)
-                    if (interaction && interaction.isModalSubmit()) {
+                    interaction = await interaction.awaitModalSubmit({ filter, time: 180000 }).catch(() => null)
+                    if (!interaction || !interaction.isModalSubmit()) return
+                    {
                         const modalArgs = {}
                         interaction.fields.fields.each(field => modalArgs[field.customId] = field.value)
                         if (modalArgs.tool.toLowerCase() === settings.currencyName.toLowerCase()) settings.miningTool = "currency"
@@ -2237,7 +2240,7 @@ module.exports = {
                     })
                     
                     // Build the list of channels with panels for description
-                    const channelsList = panelMessages.map(p => `<#${p.channelId}>`).join("\n")
+                    const channelsList = panelMessages.map(p => `<#${p.channelId}>`).join("\n").slice(0, 1500)
                     
                     const deleteMsg = await interaction.followUp({ 
                         content: `${client.config.emojis.exc} ${client.language({ textId: "Select panels to delete", guildId: interaction.guildId, locale: interaction.locale })}\n\n${client.language({ textId: "Panels in channels", guildId: interaction.guildId, locale: interaction.locale })}:\n${channelsList}`,
@@ -2247,7 +2250,7 @@ module.exports = {
                                     .setCustomId(`ucpDelSel`)
                                     .setPlaceholder(client.language({ textId: "Select channels to delete", guildId: interaction.guildId, locale: interaction.locale }))
                                     .setMinValues(1)
-                                    .setMaxValues(channelOptions.length)
+                                    .setMaxValues(Math.min(channelOptions.length, 25))
                                     .setOptions(channelOptions.slice(0, 25))
                             ),
                             new ActionRowBuilder().addComponents(

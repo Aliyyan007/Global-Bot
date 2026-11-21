@@ -39,8 +39,8 @@ module.exports = {
                         .setCustomId('cmd{mod-remove-role-select}')
                         .setPlaceholder('Select roles to remove')
                         .setMinValues(1)
-                        .setMaxValues(options.length)
-                        .addOptions(options)
+                        .setMaxValues(Math.min(options.length, 25))
+                        .addOptions(options.slice(0, 25))
                 );
             
             await interaction.reply({
