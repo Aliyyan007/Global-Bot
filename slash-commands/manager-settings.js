@@ -2603,8 +2603,16 @@ module.exports = {
                         ])
                 ])] })
             }
-            if ((interaction.replied || interaction.deferred)) await interaction.editReply({ components: [new ActionRowBuilder().addComponents(new ButtonBuilder().setEmoji("⏳").setStyle(ButtonStyle.Secondary).setCustomId(`0`).setDisabled(true))]})
-            else await interaction.update({ components: [new ActionRowBuilder().addComponents(new ButtonBuilder().setEmoji("⏳").setStyle(ButtonStyle.Secondary).setCustomId(`0`).setDisabled(true))]})
+            // Some branches below respond with first-response-only methods
+            // (showModal / update). Pre-acking here turns those into 40060s,
+            // so the loading ack is skipped for them — they ack themselves.
+            const activitiesModalValues = ["levelfactor", "xpForMessage", "curForMessage", "rpForMessage", "xpForVoice", "curForVoice", "rpForVoice", "xpForInvite", "curForInvite", "rpForInvite", "xpForBump", "curForBump", "rpForBump", "xpForLike", "curForLike", "rpForLike", "xpForFirstFoundItem", "curForFirstFoundItem", "rpForFirstFoundItem"]
+            const needsFirstResponse = interaction.customId.includes("autosetup")
+                || (interaction.customId.includes("activities") && (interaction.customId.includes("default") || activitiesModalValues.includes(interaction.values?.[0])))
+            if (!needsFirstResponse) {
+                if ((interaction.replied || interaction.deferred)) await interaction.editReply({ components: [new ActionRowBuilder().addComponents(new ButtonBuilder().setEmoji("⏳").setStyle(ButtonStyle.Secondary).setCustomId(`0`).setDisabled(true))]})
+                else await interaction.update({ components: [new ActionRowBuilder().addComponents(new ButtonBuilder().setEmoji("⏳").setStyle(ButtonStyle.Secondary).setCustomId(`0`).setDisabled(true))]})
+            }
             if ((interaction.values?.[0] || "").includes("shop") || interaction.customId.includes("shop")) {
                 const types = ["shopName", "shopMessages", "shopThumbnail"]
                 if (types.includes(interaction.values[0])) {
