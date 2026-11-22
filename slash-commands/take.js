@@ -350,7 +350,7 @@ module.exports = {
             switch (args.Subcommand) {
                 case "level": return Math.max(p.level || 0, 0)
                 case "season_level": return Math.max(p.seasonLevel || 0, 0)
-                case "experience": return Math.max(p.xp || 0, 0)
+                case "experience": return Math.max(p.totalxp || 0, 0)
                 case "reputation": return Math.max(p.rp || 0, 0)
                 case "currency": return Math.max(p.currency || 0, 0)
                 case "likes": return Math.max(p.likes || 0, 0)

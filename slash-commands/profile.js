@@ -622,14 +622,15 @@ module.exports = {
             embed.setColor(member.displayHexColor)
             if (interaction.customId.includes("edit")) {
                 interaction.values.forEach(e => {
-                    if (profile[e]) profile[e] = undefined
-                    else profile[e] = true
+                    // Explicit `false` (not `undefined`) so opt-outs persist —
+                    // the level-up notifier treats only `false` as opted out.
+                    profile[e] = profile[e] ? false : true
                 })
                 await profile.save()
             }
             embed.addFields([
                 {
-                    name: `${client.language({ textId: "New level mention", guildId: interaction.guildId, locale: interaction.locale })}`, value: profile.levelMention ? `${client.config.emojis.on}${client.language({ textId: "Enabled", guildId: interaction.guildId, locale: interaction.locale })}` : `${client.config.emojis.off}${client.language({ textId: "Disabled", guildId: interaction.guildId, locale: interaction.locale })}`, inline: true
+                    name: `${client.language({ textId: "New level mention", guildId: interaction.guildId, locale: interaction.locale })}`, value: profile.levelMention !== false ? `${client.config.emojis.on}${client.language({ textId: "Enabled", guildId: interaction.guildId, locale: interaction.locale })}` : `${client.config.emojis.off}${client.language({ textId: "Disabled", guildId: interaction.guildId, locale: interaction.locale })}`, inline: true
                 },
                 {
                     name: `${client.language({ textId: "New achievement mention", guildId: interaction.guildId, locale: interaction.locale })}`, value: profile.achievementMention ? `${client.config.emojis.on}${client.language({ textId: "Enabled", guildId: interaction.guildId, locale: interaction.locale })}` : `${client.config.emojis.off}${client.language({ textId: "Disabled", guildId: interaction.guildId, locale: interaction.locale })}`, inline: true
@@ -649,7 +650,7 @@ module.exports = {
             ])
             const selectMenuOptions = [
                 {
-                    emoji: client.config.emojis.medal, label: `${client.language({ textId: "New level mention", guildId: interaction.guildId, locale: interaction.locale })}`, description: profile.levelMention ? `🔔${client.language({ textId: "Enabled", guildId: interaction.guildId, locale: interaction.locale })}` : `🔕${client.language({ textId: "Disabled", guildId: interaction.guildId, locale: interaction.locale })}`, value: `levelMention`
+                    emoji: client.config.emojis.medal, label: `${client.language({ textId: "New level mention", guildId: interaction.guildId, locale: interaction.locale })}`, description: profile.levelMention !== false ? `🔔${client.language({ textId: "Enabled", guildId: interaction.guildId, locale: interaction.locale })}` : `🔕${client.language({ textId: "Disabled", guildId: interaction.guildId, locale: interaction.locale })}`, value: `levelMention`
                 },
                 {
                     emoji: client.config.emojis.achievements, label: `${client.language({ textId: "New achievement mention", guildId: interaction.guildId, locale: interaction.locale })}`, description: profile.achievementMention ? `🔔${client.language({ textId: "Enabled", guildId: interaction.guildId, locale: interaction.locale })}` : `🔕${client.language({ textId: "Disabled", guildId: interaction.guildId, locale: interaction.locale })}`, value: `achievementMention`

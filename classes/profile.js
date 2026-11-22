@@ -781,11 +781,14 @@ class Profile {
         return
     }
     async subtractCurrency(amount, save, withoutCurrencySpent) {
-        this.currency = amount*-1
-        if (!withoutCurrencySpent) this.currencySpent += amount
-        this.client.emit("economyLogCreate", this.guildID, `${this.client.language({ textId: "Currency change", guildId: this.guildID })} (-${amount}) ${this.client.language({ textId: "for", guildId: this.guildID })} <@${this.userID}>`)
+        // Floor at 0 — never let the balance go negative. `delta` is the amount
+        // actually removed so spent-tracking and logs stay honest.
+        const delta = Math.min(Math.max(amount, 0), Math.max(this.currency, 0))
+        this.currency = -delta
+        if (!withoutCurrencySpent) this.currencySpent += delta
+        this.client.emit("economyLogCreate", this.guildID, `${this.client.language({ textId: "Currency change", guildId: this.guildID })} (-${delta}) ${this.client.language({ textId: "for", guildId: this.guildID })} <@${this.userID}>`)
         const guildQuests = this.client.cache.quests.filter(quest => quest.guildID === this.guildID && quest.isEnabled && quest.targets.some(target => target.type === "currencySpent"))
-        if (guildQuests.size && amount !== 0) await this.addQuestProgression("currencySpent", amount)
+        if (guildQuests.size && delta !== 0) await this.addQuestProgression("currencySpent", delta)
         const achievements = this.client.cache.achievements.filter(e => e.guildID === this.guildID && e.type === AchievementType.CurrencySpent && e.enabled)
         await Promise.all(achievements.map(async achievement => {
             if (!this.achievements?.some(ach => ach.achievmentID === achievement.id) && this.currencySpent >= achievement.amount && !this.client.tempAchievements[this.userID]?.includes(achievement.id)) {
@@ -908,7 +911,7 @@ class Profile {
                             await this.addCurrency(reward.amount, false, true, withoutLogs, withoutNotification)
                             rewardArray.push(`${settings.displayCurrencyEmoji}**${settings.currencyName}** (${reward.amount})`)
                         } else if (reward.type === RewardType.Experience) {
-                            await this.addXp(reward.amount, false, false, true, withoutLogs, withoutNotification)
+                            await this.addXp(reward.amount, false, false, withoutLogs, withoutNotification)
                             rewardArray.push(`${this.client.config.emojis.XP}**${this.client.language({ textId: "XP", guildId: guild.id })}** (${reward.amount})`)
                         } else if (reward.type === RewardType.Reputation) {
                             await this.addRp(reward.amount, false, true, withoutLogs, withoutNotification)
@@ -1002,7 +1005,10 @@ class Profile {
             // roles and achievements — the combined-panel level_up channel was
             // removed from the notification settings UI, so the separate
             // dispatcher path is gone (it also caused duplicate rank cards).
-            if (!withoutNotification) await this.newLevelNotify()
+            // `withoutNotification` suppresses the announcement, not the
+            // rewards — role sync + achievements must still run for
+            // admin-granted and like-driven level-ups.
+            await this.newLevelNotify({ silent: !!withoutNotification, fromLevel: oldLevel })
         }
         i = 0
         if (settings.seasonLevelsEnabled && !withoutSeasonXP) {
@@ -1032,6 +1038,10 @@ class Profile {
         this.client.emit("economyLogCreate", this.guildID, `${this.client.language({ textId: "Experience change", guildId: this.guildID })} (-${amount}) ${this.client.language({ textId: "for", guildId: this.guildID })} <@${this.userID}>`)
         const oldLevel = this.level
         const oldXp = this.xp
+        // The demotion loop below drains `amount` to 0 — snapshot it so the
+        // season block still sees the real amount (season counters must drop
+        // in step with the main ones).
+        const originalAmount = amount
         let i = 0
         if (this.totalxp <= amount) {
             this.xp = 0
@@ -1060,28 +1070,29 @@ class Profile {
         i = 0
         if (settings.seasonLevelsEnabled) {
             const seasonOldLevel = this.seasonLevel
-            if (this.seasonTotalXp <= amount) {
+            let seasonAmount = originalAmount
+            if (this.seasonTotalXp <= seasonAmount) {
                 this.seasonXp = 0
                 this.seasonLevel = 1
                 this.seasonTotalXp = 0
             } else {
-                this.seasonTotalXp -= amount
-                while (amount > 0) {
-                    if (amount >= this.seasonXp) {
-                        amount -= this.seasonXp
+                this.seasonTotalXp -= seasonAmount
+                while (seasonAmount > 0) {
+                    if (seasonAmount >= this.seasonXp) {
+                        seasonAmount -= this.seasonXp
                         if (this.seasonLevel === 1) {
                             this.seasonXp = 0
-                            amount = 0
+                            seasonAmount = 0
                         } else {
                             this.seasonLevel--
                             this.seasonXp = this.seasonLevel * settings.seasonLevelfactor + 100
                         }
                     } else {
-                        this.seasonXp -= amount
-                        amount = 0
+                        this.seasonXp -= seasonAmount
+                        seasonAmount = 0
                     }
                     i++
-                    if (i > 100000) throw new Error(`Infinite loop: subtractXp:820, amount: ${amount}, seasonLevelfactor: ${settings.seasonLevelfactor}, seasonOldLevel: ${seasonOldLevel}, oldXp: ${oldXp}`)
+                    if (i > 100000) throw new Error(`Infinite loop: subtractXp:820, amount: ${seasonAmount}, seasonLevelfactor: ${settings.seasonLevelfactor}, seasonOldLevel: ${seasonOldLevel}, oldXp: ${oldXp}`)
                 }
             }
             if (this.seasonLevel < seasonOldLevel) await this.newSeasonLevelNotify()
@@ -1117,7 +1128,9 @@ class Profile {
         return
     }
     async subtractRp(amount, save, withoutAchievement) {
-        if (this.rp > -1000) this.rp = amount*-1
+        // Floor at -1000 — the additive setter means `= -delta`; without the
+        // clamp, unguarded callers could push rp past the -1000 bound.
+        if (this.rp > -1000) this.rp = -Math.min(amount, this.rp + 1000)
         try {
             this.client.emit("economyLogCreate", this.guildID, `${this.client.language({ textId: "Reputation change", guildId: this.guildID })} (-${amount}) ${this.client.language({ textId: "for", guildId: this.guildID })} <@${this.userID}>`)
         } catch (err) {
@@ -1228,7 +1241,7 @@ class Profile {
      * Pass { silent: true } to skip the announcement + activity log — used for
      * level decreases and bulk recomputes where a card per user would spam.
      */
-    async newLevelNotify({ silent = false } = {}) {
+    async newLevelNotify({ silent = false, fromLevel = null } = {}) {
         const guild = this.client.guilds.cache.get(this.guildID)
         if (guild) {
             const member = await guild.members.fetch(this.userID).catch(e => null)
@@ -1248,14 +1261,16 @@ class Profile {
                     return rankCardBuffer
                 }
 
-                // Legacy combined-panel level-up channel (kept for guilds configured before that option was removed)
-                if (!silent && settings.levelUpNotifications?.enabled && settings.levelUpNotifications?.channelId) {
+                // Legacy combined-panel level-up channel (kept for guilds configured before that option was removed).
+                // Suppressed when the dedicated channel is also set — otherwise
+                // guilds would double-post a rank card on every level-up.
+                if (!silent && settings.levelUpNotifications?.enabled && settings.levelUpNotifications?.channelId && !settings.channels?.levelNotificationChannelId) {
                     try {
                         const notifChannel = await guild.channels.fetch(settings.levelUpNotifications.channelId).catch(() => null)
                         if (notifChannel) {
                             const buffer = await getRankCard()
                             await notifChannel.send({
-                                content: `Hey! you <@${member.user.id}> !!! You just reached level ${this.level}. GG!`,
+                                content: `Hey! you <@${member.user.id}> !!! You just leveled up from ${fromLevel ?? this.level - 1} to level ${this.level}. GG!`,
                                 files: [{ attachment: buffer, name: `rank_${member.user.id}.png` }]
                             }).catch(e => null)
                         }
@@ -1272,16 +1287,15 @@ class Profile {
                     for (const role of rolesAdd) {
                         const guild_role = await guild.roles.fetch(role.roleId).catch(e => null)
                         if (guild_role && guild.members.me?.roles.highest.position > guild_role.position) {
-                            await member.roles.add(guild_role.id).catch(e => null)
-                            rolesadd += `\n> <@&${guild_role.id}>`
+                            // Report the role only when the API call actually succeeds
+                            await member.roles.add(guild_role.id).then(() => rolesadd += `\n> <@&${guild_role.id}>`).catch(e => null)
                         }
                     }
-                    const rolesRemove = settings.levelsRoles.filter(e => (e.levelTo <= this.level || e.levelFrom > this.level) && member.roles.cache.has(e.roleId))
+                    const rolesRemove = settings.levelsRoles.filter(e => ((e.levelTo != null && e.levelTo <= this.level) || e.levelFrom > this.level) && member.roles.cache.has(e.roleId))
                     for (const role of rolesRemove) {
                         const guild_role = await guild.roles.fetch(role.roleId).catch(e => null)
                         if (guild_role && guild.members.me?.roles.highest.position > guild_role.position) {
-                            await member.roles.remove(guild_role.id).catch(e => null)
-                            rolesremove += `\n> <@&${guild_role.id}>`
+                            await member.roles.remove(guild_role.id).then(() => rolesremove += `\n> <@&${guild_role.id}>`).catch(e => null)
                         }
                     }
                 }
@@ -1302,18 +1316,27 @@ class Profile {
                             if (rolesremove !== "") newLevelNotifEmbed.addFields([{ name: `${this.client.language({ textId: "Roles removed", guildId: guild.id })}:`, value: rolesremove }])
                             if (!files.length) newLevelNotifEmbed.setFooter({ text: `${this.client.language({ textId: "Until next level", guildId: guild.id })} ⭐${this.xp.toFixed()}/${this.level * settings.levelfactor + 100 } XP (${Math.floor((this.xp / (this.level * settings.levelfactor + 100)) * 100)}%)` })
                         }
-                        await notifChannel.send({ content: this.levelMention ? `<@${member.user.id}>` : ` `, files, embeds: newLevelNotifEmbed ? [newLevelNotifEmbed] : [] }).catch(e => null)
+                        // Mention is opt-out: ping by default, only users who
+                        // explicitly disabled "New level mention" in /profile
+                        // are not pinged (they still get the level-up text).
+                        const fromLvl = fromLevel ?? this.level - 1
+                        const levelText = this.levelMention === false
+                            ? `You just leveled up from ${fromLvl} to level ${this.level}. GG!`
+                            : `Hey! you <@${member.user.id}> !!! You just leveled up from ${fromLvl} to level ${this.level}. GG!`
+                        await notifChannel.send({ content: levelText, files, embeds: newLevelNotifEmbed ? [newLevelNotifEmbed] : [] }).catch(e => null)
                     }
                 }
             }
             const achievements = this.client.cache.achievements.filter(e => e.guildID === this.guildID && e.type === AchievementType.Level && e.enabled)
+            // A throwing achievement grant must not propagate — the caller's
+            // profile.save() runs after this and would silently drop the XP.
             await Promise.all(achievements.map(async achievement => {
                 if (!this.achievements?.some(ach => ach.achievmentID === achievement.id) && this.level >= achievement.amount && !this.client.tempAchievements[this.userID]?.includes(achievement.id)) { 
                     if (!this.client.tempAchievements[this.userID]) this.client.tempAchievements[this.userID] = []
                     this.client.tempAchievements[this.userID].push(achievement.id)
-                    await this.addAchievement(achievement)
+                    await this.addAchievement(achievement).catch(e => console.error('Error granting level achievement:', e))
                 }    
-            })) 
+            })).catch(e => console.error('Error in level achievements:', e))
         }
     }
     async newSeasonLevelNotify() {
@@ -1357,8 +1380,8 @@ class Profile {
         }
         const guildQuests = this.client.cache.quests.filter(quest => quest.guildID === this.guildID && quest.isEnabled && quest.targets.some(target => target.type === "level"))
         if (guildQuests.size) await this.addQuestProgression("level", amount, undefined, false, withoutNotification)
-        if (!withoutNotification)await this.newLevelNotify()
-        await this.addSeasonLevel(amount, false, withoutNotification)
+        await this.newLevelNotify({ silent: !!withoutNotification })
+        if (settings.seasonLevelsEnabled) await this.addSeasonLevel(amount, false, withoutNotification)
         if (save) await this.save()
         return
     }
@@ -1379,8 +1402,10 @@ class Profile {
         const LEVEL_FACTOR = settings.seasonLevelfactor
         let i = 0
         while (this.seasonLevel < (oldSeasonLevel + amount)) {
-            this.seasonLevel++
+            // Add the transition cost of the CURRENT level before incrementing
+            // (mirrors addLevel) — previously added the next level's cost.
             this.seasonTotalXp += this.seasonLevel * LEVEL_FACTOR + 100
+            this.seasonLevel++
             i++
             if (i > 100000) throw new Error(`Infinite loop: addSeasonLevel:1073, amount: ${amount}, LEVEL_FACTOR: ${LEVEL_FACTOR}, oldSeasonLevel: ${oldSeasonLevel}`)
         }
@@ -1401,6 +1426,9 @@ class Profile {
         const LEVEL_FACTOR = settings.levelfactor
         const oldLevel = this.level
         const oldTotalXp = this.totalxp
+        // Floor at level 1 — below it the level cost turns negative and the
+        // additive totalxp setter would ADD xp instead of removing it.
+        amount = Math.min(amount, this.level - 1)
         let i = 0
         while (this.level > (oldLevel - amount)) {
             this.level--
@@ -1409,6 +1437,7 @@ class Profile {
             i++
             if (i > 100000) throw new Error(`Infinite loop: subtractLevel:1097, amount: ${amount}, LEVEL_FACTOR: ${LEVEL_FACTOR}, oldLevel: ${oldLevel}, oldTotalXp: ${oldTotalXp}`) 
         }
+        if (settings.seasonLevelsEnabled) await this.subtractSeasonLevel(amount, false)
         await this.newLevelNotify({ silent: true })
         if (save) await this.save()
         return
@@ -1433,11 +1462,14 @@ class Profile {
         if (!settings) return
         const LEVEL_FACTOR = settings.seasonLevelfactor
         const oldSeasonLevel = this.seasonLevel
+        // Same floor + ordering as subtractLevel: decrement first, then remove
+        // the new (lower) level's cost; never drop below season level 1.
+        amount = Math.min(amount, this.seasonLevel - 1)
         let i = 0
         while (this.seasonLevel > (oldSeasonLevel - amount)) {
-            this.seasonTotalXp -= this.seasonLevel * LEVEL_FACTOR + 100
-            this.seasonXp = Math.abs(this.seasonXp - this.seasonLevel * LEVEL_FACTOR + 100)
             this.seasonLevel--
+            this.seasonTotalXp -= this.seasonLevel * LEVEL_FACTOR + 100
+            if (this.seasonXp > 0) this.seasonXp = this.seasonLevel * LEVEL_FACTOR + 100 - Math.abs(this.seasonXp - (this.seasonLevel * LEVEL_FACTOR + 100))
             i++
             if (i > 100000) throw new Error(`Infinite loop: subtractSeasonLevel:1128, amount: ${amount}, LEVEL_FACTOR: ${LEVEL_FACTOR}, oldSeasonLevel: ${oldSeasonLevel}`)
         }

@@ -5,7 +5,7 @@ module.exports = {
     name: `getQuestReward`,
     run: async (client, interaction) => {
         await interaction.deferReply({ flags: ["Ephemeral"] })
-    	const settings = client.cache.settings.get() || await client.functions.fetchSettings(client, )
+    	const settings = client.cache.settings.get(interaction.guildId) || await client.functions.fetchSettings(client, interaction.guildId)
         const questID = guestRegexp.exec(interaction.customId)?.[1]
         const profile = await client.functions.fetchProfile(client, interaction.user.id, interaction.guildId)
         if (!questID) {
