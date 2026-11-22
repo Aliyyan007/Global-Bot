@@ -12,7 +12,6 @@ module.exports = {
     description: 'Delete a message by link (OWNER ONLY)',
     dmPermission: true,
     group: `admins-group`,
-    defaultMemberPermissions: "Administrator",
     guildOnly: true,
     cooldowns: new Collection(),
     /**
@@ -59,15 +58,21 @@ module.exports = {
         if (!channel?.isTextBased?.() || !channel?.messages) {
             return fail(`I can't access that channel — I'm either not in the server or missing permissions there.`)
         }
-        const msg = await channel.messages.fetch(linkMatch[3]).catch(() => null)
+        const msg = await channel.messages.fetch(linkMatch[3], { force: true }).catch(() => null)
         if (!msg) return fail(`Message not found — it may already be deleted, or I can't see it.`)
-        if (!msg.deletable) {
-            return fail(`I can't delete that message — I need **Manage Messages** in <#${channel.id}> (or it isn't mine, in DMs).`)
-        }
 
-        await msg.delete().catch(e => null)
-        const stillThere = await channel.messages.fetch(msg.id).catch(() => null)
-        if (stillThere) return fail(`Delete failed — check my **Manage Messages** permission in <#${channel.id}>.`)
+        // Trust the delete call itself — it resolves with the deleted Message
+        // and throws on failure. (Re-fetching to "confirm" can return the
+        // still-cached copy before the gateway delete event lands.)
+        try {
+            await msg.delete()
+        } catch (e) {
+            if (e?.code === 50013 || e?.code === 50001) {
+                return fail(`I can't delete that message — I need **Manage Messages** in <#${channel.id}> (or it isn't mine, in DMs).`)
+            }
+            if (e?.code === 10008) return fail(`Message not found — it may already be deleted.`)
+            return fail(`Delete failed: ${e?.message || 'Unknown error'}`)
+        }
 
         const where = channel.guild ? `<#${channel.id}> in **${channel.guild.name}**` : `your DMs`
         return submitted.reply({ content: `${client.config.emojis.YES} Deleted the message in ${where}.`, flags: ["Ephemeral"] })
