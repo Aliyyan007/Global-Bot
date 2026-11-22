@@ -17,8 +17,6 @@ module.exports = {
     },
     dmPermission: false,
     group: `admins-group`,
-    defaultMemberPermissions: "Administrator",
-    owner: true,
     guildOnly: true,
     devGuildId: "1345823526577246218",
     cooldowns: new Collection(),
