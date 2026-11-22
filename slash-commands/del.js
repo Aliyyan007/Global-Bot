@@ -8,7 +8,7 @@ const { TextInputStyle, InteractionType, ModalBuilder, TextInputBuilder, Collect
  * it can see + Manage Messages, or its own DM messages via @me links).
  */
 module.exports = {
-    name: 'del',
+    name: 'del-message',
     description: 'Delete a message by link (OWNER ONLY)',
     dmPermission: true,
     group: `admins-group`,
