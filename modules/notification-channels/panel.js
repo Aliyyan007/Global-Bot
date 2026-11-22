@@ -95,17 +95,23 @@ function buildPreviewEmbeds(client, interaction, type, config, member, guild) {
             : `Welcome ${mention} **${guild.name}!**`
         contentLines.push(welcomeContent)
     } else if (type === 'goodbye') {
-        const showMc = config.showMemberCount !== false
-        const goodbyeText = showMc
-            ? `Good Bye! ${mention} from **${guild.name}**! User Id Number ${uid} You are the ${guild.memberCount} lefty. 😔`
-            : `Good Bye! ${mention} from **${guild.name}**! User Id Number ${uid} 😔`
-        if (config.mentionEveryone) contentLines.push('@everyone')
-        if (config.mentions?.length) contentLines.push(config.mentions.map(id => `<@&${id}>`).join(' '))
-        contentLines.push(goodbyeText)
-        if (useCustom && resolved.content) contentLines.push(resolved.content)
+        if (useCustom) {
+            if (resolved.content) contentLines.push(resolved.content)
+        } else {
+            const showMc = config.showMemberCount !== false
+            const goodbyeText = showMc
+                ? `Good Bye! ${mention} from **${guild.name}**! User Id Number ${uid} You are the ${guild.memberCount} lefty. 😔`
+                : `Good Bye! ${mention} from **${guild.name}**! User Id Number ${uid} 😔`
+            if (config.mentionEveryone) contentLines.push('@everyone')
+            if (config.mentions?.length) contentLines.push(config.mentions.map(id => `<@&${id}>`).join(' '))
+            contentLines.push(goodbyeText)
+        }
     } else if (type === 'birthday') {
-        if (useCustom && resolved.content) contentLines.push(resolved.content)
-        else contentLines.push(`Happy birthday ${mention} 🎉`)
+        if (useCustom) {
+            if (resolved.content) contentLines.push(resolved.content)
+        } else {
+            contentLines.push(mention)
+        }
     }
 
     const previewEmbed = new EmbedBuilder()

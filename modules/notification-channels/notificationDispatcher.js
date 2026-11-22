@@ -97,7 +97,7 @@ async function sendBirthdayNotification(guildId, member, client) {
                 .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
                 .setTimestamp();
             
-            await channel.send({ embeds: [embed] });
+            await channel.send({ content: `<@${member.user.id}>`, embeds: [embed] });
         }
     } catch (error) {
         console.error('Error sending birthday notification:', error);
