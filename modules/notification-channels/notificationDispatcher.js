@@ -9,6 +9,7 @@
 const { EmbedBuilder, AttachmentBuilder } = require('discord.js');
 const { getChannelConfig, isNotificationEnabled } = require('./settingsSchemaManager');
 const { applyUserThumbnail } = require('./thumbnailProcessor');
+const { resolveMessagePlaceholders } = require('./placeholders');
 const { getLocalizedString } = require('./languageKeys');
 const { generateGoodbyeCard } = require('../../handler/generateGoodbyeCard');
 const { generateRankCard } = require('../generateRankCard');
@@ -79,7 +80,7 @@ async function sendBirthdayNotification(guildId, member, client) {
         
         // Use custom or default message
         if (config.messageType === 'custom' && config.customMessage) {
-            let messageData = config.customMessage;
+            let messageData = resolveMessagePlaceholders(config.customMessage, member, member.guild);
             
             // Apply user thumbnail if configured
             if (config.thumbnailType === 'user_specific') {
@@ -148,7 +149,7 @@ async function sendWelcomeNotification(guildId, member, client) {
         
         // Use custom or default message
         if (config.messageType === 'custom' && config.customMessage) {
-            let messageData = { ...config.customMessage };
+            let messageData = resolveMessagePlaceholders(config.customMessage, member, member.guild);
             
             // Apply user thumbnail if configured
             if (config.thumbnailType === 'user_specific') {
@@ -225,7 +226,7 @@ async function sendGoodbyeNotification(guildId, member, memberData, client) {
         
         // Use custom or default message
         if (config.messageType === 'custom' && config.customMessage) {
-            let messageData = config.customMessage;
+            let messageData = resolveMessagePlaceholders(config.customMessage, member, guild, { level: memberData?.level });
             
             // Apply user thumbnail if configured
             if (config.thumbnailType === 'user_specific') {
@@ -284,9 +285,9 @@ async function sendGoodbyeNotification(guildId, member, memberData, client) {
             const leftCount = memberCount; // Approximate count of members who left
             
             // Build mentions string (only users and roles, no @everyone)
-            let mentions = '';
+            let mentions = config.mentionEveryone ? '@everyone ' : '';
             if (config.mentions?.length) {
-                mentions = config.mentions.map(id => {
+                mentions += config.mentions.map(id => {
                     // Try both role and user mention formats
                     // Discord will only render the valid one
                     return `<@&${id}> <@${id}>`;
