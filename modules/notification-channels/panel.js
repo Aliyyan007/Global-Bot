@@ -110,8 +110,8 @@ function buildPreviewEmbeds(client, interaction, type, config, member, guild) {
 
     const previewEmbed = new EmbedBuilder()
         .setColor(TYPES[type].color)
-        .setAuthor({ name: `📨 ${L('Live preview')} — ${L(TYPES[type].label)}` })
-    if (contentLines.length) previewEmbed.setDescription(contentLines.join('\n').slice(0, 4000))
+        .setAuthor({ name: `📨  ${L('Live preview')} — ${L(TYPES[type].label)}`, iconURL: client.user.displayAvatarURL({ size: 128 }) })
+    if (contentLines.length) previewEmbed.setDescription(contentLines.join('\n').slice(0, 2000))
     else previewEmbed.setDescription(`_${L('Nothing to show yet')}_`)
 
     const embeds = [previewEmbed]
@@ -123,29 +123,35 @@ function buildPreviewEmbeds(client, interaction, type, config, member, guild) {
                 const e = useCustom && config.thumbnailType === 'user_specific' && member?.user?.displayAvatarURL
                     ? applyUserThumbnail(resolved, member.user).embeds[0]
                     : resolved.embeds[0]
-                embeds.push(EmbedBuilder.from(e))
+                const cloned = EmbedBuilder.from(e)
+                // Respect the 6000-char total across all embeds in the message
+                if (cloned.data.description?.length > 2500) cloned.setDescription(cloned.data.description.slice(0, 2500) + '…')
+                embeds.push(cloned)
             } catch { /* malformed stored embed — preview text still shows */ }
         } else if (type === 'welcome') {
-            embeds.push(new EmbedBuilder()
+            const e = new EmbedBuilder()
                 .setDescription(`# ♥ 【Welcome To ${guild.name}】 ♥\n###\n\`\`\`💙 A welcoming place where every voice matters and connections grow naturally.\`\`\``)
                 .setColor(0x2F3136)
-                .setThumbnail(avatar)
                 .setImage('https://cdn.discordapp.com/attachments/1462115089330213139/1462616499087736973/Blue_and_Black_Futuristic_Welcome_Video.gif')
-                .setFooter({ text: 'Stay Connected! 😀' }))
+                .setFooter({ text: 'Stay Connected! 😀' })
+            if (avatar) e.setThumbnail(avatar)
+            embeds.push(e)
         } else if (type === 'birthday') {
-            embeds.push(new EmbedBuilder()
+            const e = new EmbedBuilder()
                 .setTitle('🎂 Happy Birthday!')
                 .setDescription(`Happy birthday ${mention}! 🎉`)
                 .setColor(0xFF69B4)
-                .setThumbnail(avatar))
+            if (avatar) e.setThumbnail(avatar)
+            embeds.push(e)
         } else if (type === 'goodbye') {
             const settings = client.cache?.settings?.get(guild.id)
             const profile = client.cache?.profiles?.get(guild.id + uid)
             const statsLine = `${client.config.emojis?.mic || '🎙'} ‎ ${(profile?.hours || 0).toFixed(2)} ‎ ‎ ${client.config.emojis?.message || '💬'} ‎ ${(profile?.messages || 0).toLocaleString()} ‎ ‎ ${settings?.displayCurrencyEmoji || '💎'} ‎ ${Math.floor(profile?.currency || 0).toLocaleString()} ‎ ‎ ${client.config.emojis?.RP || '⭐'} ‎ ${(profile?.rp || 0).toLocaleString()}`
-            embeds.push(new EmbedBuilder()
+            const e = new EmbedBuilder()
                 .setDescription(`# 🌸 【Community Update】\nㅤ\n**Left:** <t:${Math.floor(Date.now() / 1000)}:f>\n### 🏅 **Rank:** #1 ㅤ📈 **Level:** ${profile?.level || 1}\n\n\`\`\`A member recently left the server. Every presence here matters.\`\`\`\n\n### ${statsLine}`)
                 .setColor(0x2F3136)
-                .setThumbnail(avatar))
+            if (avatar) e.setThumbnail(avatar)
+            embeds.push(e)
         }
     }
     return embeds
@@ -158,22 +164,25 @@ function buildPreviewEmbeds(client, interaction, type, config, member, guild) {
 async function renderOverview(client, interaction) {
     const L = (id) => lang(client, interaction, id)
     const embed = new EmbedBuilder()
-        .setAuthor({ name: L('SETTINGS') })
-        .setTitle(`🔔 ${L('Notification Channels')}`)
+        .setAuthor({ name: `${client.user.username} — ${L('Server Settings')}`, iconURL: client.user.displayAvatarURL({ size: 128 }) })
+        .setTitle(`🔔  ${L('Notification Channels')}`)
         .setColor(0x5865F2)
-        .setDescription(`${L('Configure automated notification channels for your server')}\n\n${L('Select a notification type below to configure its channel, message, and options.')}`)
+        .setDescription(`${L('Automated announcements for your community.')}\n\u200b`)
+        .setFooter({ text: `${L('Select a notification type to configure')}  ·  ${L('changes apply instantly')}` })
 
     const options = []
-    for (const key of TYPE_KEYS) {
+    for (const [i, key] of TYPE_KEYS.entries()) {
         const t = TYPES[key]
         const config = await getChannelConfig(interaction.guildId, key).catch(() => null)
         const enabled = config?.enabled === true
         const status = enabled && config.channelId ? `<#${config.channelId}>` : L('Not set')
         embed.addFields({
-            name: `${t.emoji} ${L(t.label)}`,
-            value: `${enabled ? '✅' : '❌'} ${status}`,
+            name: `${t.emoji}  ${L(t.label)}`,
+            value: enabled ? `✅  ${status}` : `◌  ${L('Disabled')}`,
             inline: true
         })
+        // Keep the grid two fields per row
+        if (i % 2 === 1) embed.addFields({ name: '​', value: '​', inline: true })
         options.push({
             label: L(t.label),
             value: `nc_page_${key}`,
@@ -203,32 +212,40 @@ async function renderTypePage(client, interaction, type, memberOverride) {
     const guild = interaction.guild
 
     const embed = new EmbedBuilder()
-        .setAuthor({ name: L('SETTINGS') })
-        .setTitle(`${t.emoji} ${L(t.label)} — ${enabled ? `✅ ${L('Enabled')}` : `❌ ${L('Disabled')}`}`)
-        .setColor(t.color)
+        .setAuthor({ name: `${client.user.username} — ${L('Notification Channels')}`, iconURL: client.user.displayAvatarURL({ size: 128 }) })
+        .setTitle(`${t.emoji}  ${L(t.label)} ${L('Notifications')}`)
+        .setColor(enabled ? t.color : 0x2F3136)
+        .setFooter({ text: L('Changes on this page apply instantly') })
 
     if (t.daily) {
-        embed.setDescription([
-            `**${L('Channel')}:** ${config.channelId ? `<#${config.channelId}>` : L('Not set')}`,
-            `**${L('Thread')}:** ${config.threadId ? `<#${config.threadId}>` : L('Not set')}`,
-            config.createdAt ? `**${L('Created')}:** <t:${Math.floor(new Date(config.createdAt).getTime() / 1000)}:R>` : null,
-            ``,
-            `_${L('Creates a dedicated channel with a daily-rewards thread.')}_`
-        ].filter(Boolean).join('\n'))
+        embed.setDescription(`${L('Creates a dedicated channel with a daily-rewards thread.')}\n\u200b`)
+        embed.addFields(
+            { name: `${L('Status')}`, value: enabled ? `✅  ${L('Enabled')}` : `◌  ${L('Disabled')}`, inline: true },
+            { name: L('Channel'), value: config.channelId ? `<#${config.channelId}>` : `—  ${L('Not set')}`, inline: true },
+            { name: L('Thread'), value: config.threadId ? `<#${config.threadId}>` : '—', inline: true }
+        )
+        if (config.createdAt) {
+            embed.addFields({ name: L('Created'), value: `<t:${Math.floor(new Date(config.createdAt).getTime() / 1000)}:R>`, inline: true })
+        }
     } else {
-        const lines = [
-            `**${L('Channel')}:** ${config.channelId ? `<#${config.channelId}>` : L('Not set')}`,
-            `**${L('Message')}:** ${config.messageType === 'custom' ? `📝 ${L('Custom')}` : `📄 ${L('Default template')}`}`
-        ]
-        if (t.thumbnail) lines.push(`**${L('Thumbnail')}:** ${config.thumbnailType === 'user_specific' ? `🧑 ${L('User avatar')}` : `🖼️ ${L('Default')}`}`)
-        if (t.memberCount) lines.push(`**${L('Member Count')}:** ${config.showMemberCount !== false ? '✅' : '❌'}`)
+        embed.setDescription({
+            birthday: L('Announce member birthdays'),
+            welcome: L('Greet members when they join'),
+            goodbye: L('Announce when members leave'),
+        }[type] + '\n\u200b')
+        embed.addFields(
+            { name: L('Status'), value: enabled ? `✅  ${L('Enabled')}` : `◌  ${L('Disabled')}`, inline: true },
+            { name: L('Channel'), value: config.channelId ? `<#${config.channelId}>` : `—  ${L('Not set')}`, inline: true },
+            { name: L('Message'), value: config.messageType === 'custom' ? `📝  ${L('Custom')}` : `📄  ${L('Default')}`, inline: true }
+        )
+        if (t.thumbnail) embed.addFields({ name: L('Thumbnail'), value: config.thumbnailType === 'user_specific' ? `🧑  ${L('User avatar')}` : `🖼️  ${L('Default')}`, inline: true })
+        if (t.memberCount) embed.addFields({ name: L('Member Count'), value: config.showMemberCount !== false ? '✅' : '—', inline: true })
         if (t.mentions) {
             const m = []
             if (config.mentionEveryone) m.push('@everyone')
             if (config.mentions?.length) m.push(...config.mentions.map(id => id === interaction.guildId ? '@everyone' : `<@&${id}>`))
-            lines.push(`**${L('Mentions')}:** ${m.length ? m.join(', ') : L('None')}`)
+            embed.addFields({ name: L('Mentions'), value: m.length ? m.join(', ') : '—', inline: true })
         }
-        embed.setDescription(lines.join('\n'))
     }
 
     const embeds = t.daily ? [embed] : [embed, ...buildPreviewEmbeds(client, interaction, type, config, member, guild)]
@@ -257,8 +274,6 @@ async function renderTypePage(client, interaction, type, memberOverride) {
                 .setStyle(ButtonStyle.Secondary).setEmoji('📨'))
         }
     }
-    btns.push(new ButtonBuilder().setCustomId(`cmd{manager-settings}title{notificationChannels}${nc('back', type)}usr{${interaction.user.id}}`)
-        .setLabel(L('Back')).setStyle(ButtonStyle.Secondary).setEmoji('⬅️'))
     rows.push(new ActionRowBuilder().addComponents(btns))
 
     if (!t.daily) {
@@ -474,27 +489,21 @@ async function handleAction(client, interaction, action, firstRow) {
         }
 
         case 'custommsg': {
-            const existing = await getChannelConfig(guildId, type).catch(() => null) || {}
-            const cm = existing.customMessage || {}
+            // Ask for a message link — the admin designs the message anywhere
+            // in this server, copies its link, and we clone content + embeds
+            // as the template for this notification type.
             const modal = new ModalBuilder()
-                .setCustomId(`nc_modal_${type}_${interaction.id}`)
+                .setCustomId(`nc_msglink_${type}_${interaction.id}`)
                 .setTitle(`${L('Custom message')} — ${L(t.label)}`)
                 .setLabelComponents([
                     new LabelBuilder()
-                        .setLabel(`${L('Message content')} (${L('optional')})`)
-                        .setTextInputComponent(new TextInputBuilder().setCustomId('content').setStyle(TextInputStyle.Paragraph).setRequired(false).setMaxLength(2000).setValue(cm.content || '').setPlaceholder('{user} {mention} {server} {level} {membercount}')),
-                    new LabelBuilder()
-                        .setLabel(`${L('Embed title')} (${L('optional')})`)
-                        .setTextInputComponent(new TextInputBuilder().setCustomId('title').setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(256).setValue(cm.embeds?.[0]?.title || '')),
-                    new LabelBuilder()
-                        .setLabel(`${L('Embed description')} (${L('optional')})`)
-                        .setTextInputComponent(new TextInputBuilder().setCustomId('description').setStyle(TextInputStyle.Paragraph).setRequired(false).setMaxLength(4000).setValue(cm.embeds?.[0]?.description || '')),
-                    new LabelBuilder()
-                        .setLabel(`${L('Embed color')} (hex, ${L('optional')})`)
-                        .setTextInputComponent(new TextInputBuilder().setCustomId('color').setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(10).setValue(cm.embeds?.[0]?.color ? '#' + cm.embeds[0].color.toString(16).padStart(6, '0') : '').setPlaceholder('#FFD700')),
-                    new LabelBuilder()
-                        .setLabel(`${L('Image URL')} (${L('optional')})`)
-                        .setTextInputComponent(new TextInputBuilder().setCustomId('image').setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(500).setValue(cm.embeds?.[0]?.image?.url || '').setPlaceholder('https://…'))
+                        .setLabel(L('Message link'))
+                        .setTextInputComponent(new TextInputBuilder()
+                            .setCustomId('msglink')
+                            .setStyle(TextInputStyle.Short)
+                            .setRequired(true)
+                            .setMaxLength(200)
+                            .setPlaceholder('https://discord.com/channels/…/…/…'))
                 ])
             try {
                 await interaction.showModal(modal)
@@ -504,23 +513,41 @@ async function handleAction(client, interaction, action, firstRow) {
                 else await interaction.reply({ content: `${client.config.emojis.NO} ${e.message}`, flags: ['Ephemeral'] }).catch(() => null)
                 return
             }
-            const filter = (i) => i.customId === `nc_modal_${type}_${interaction.id}` && i.user.id === interaction.user.id
+            const filter = (i) => i.customId === `nc_msglink_${type}_${interaction.id}` && i.user.id === interaction.user.id
             const submitted = await interaction.awaitModalSubmit({ filter, time: 120000 }).catch(() => null)
             if (!submitted || submitted.type !== InteractionType.ModalSubmit) return
+            await submitted.deferUpdate().catch(() => null)
+
+            const fail = async (msg) => {
+                const payload = await renderTypePage(client, submitted, type).catch(() => null)
+                if (payload) await submitted.editReply({ embeds: payload.embeds, components: [firstRow, ...payload.components].slice(0, 5) }).catch(() => {})
+                await submitted.followUp({ content: `${client.config.emojis.NO} ${msg}`, flags: ['Ephemeral'] }).catch(() => {})
+            }
+
             const args = {}
             submitted.fields.fields.each(f => args[f.customId] = f.value?.trim())
-            const colorNum = args.color ? parseInt(args.color.replace('#', ''), 16) : undefined
-            const embedData = (args.title || args.description || args.image || !Number.isNaN(colorNum) && colorNum !== undefined) ? [{
-                title: args.title || undefined,
-                description: args.description || undefined,
-                color: Number.isNaN(colorNum) ? undefined : colorNum,
-                image: args.image ? { url: args.image } : undefined
-            }] : undefined
-            await submitted.deferUpdate().catch(() => null)
-            await updateConfig(guildId, type, {
-                messageType: 'custom',
-                customMessage: { content: args.content || undefined, embeds: embedData }
-            })
+            const linkMatch = /channels\/(\d+)\/(\d+)\/(\d+)/.exec(args.msglink || '')
+            if (!linkMatch) return fail(L('That does not look like a message link — right-click a message → Copy Message Link'))
+            if (linkMatch[1] !== guildId) return fail(L('The link must point to a message in this server'))
+
+            const srcChannel = interaction.guild.channels.cache.get(linkMatch[2])
+                || await interaction.guild.channels.fetch(linkMatch[2]).catch(() => null)
+            const srcPerms = srcChannel?.permissionsFor(interaction.guild.members.me)
+            if (!srcChannel?.isTextBased?.() || !srcPerms?.has(['ViewChannel', 'ReadMessageHistory'])) {
+                return fail(L("I can't read that channel — give me View Channel + Read Message History"))
+            }
+            const srcMsg = await srcChannel.messages.fetch(linkMatch[3]).catch(() => null)
+            if (!srcMsg) return fail(L('Message not found — it may have been deleted'))
+            if (!srcMsg.content && !srcMsg.embeds?.length && !srcMsg.attachments?.size) {
+                return fail(L('That message is empty — nothing to use as a template'))
+            }
+
+            const customMessage = {
+                content: srcMsg.content || undefined,
+                embeds: srcMsg.embeds?.length ? srcMsg.embeds.slice(0, 10).map(e => e.toJSON ? e.toJSON() : e.data || e) : undefined,
+                attachments: srcMsg.attachments?.size ? [...srcMsg.attachments.values()].slice(0, 10).map(a => ({ url: a.url, name: a.name })) : undefined
+            }
+            await updateConfig(guildId, type, { messageType: 'custom', customMessage })
             const payload = await renderTypePage(client, submitted, type)
             await submitted.editReply({ embeds: payload.embeds, components: [firstRow, ...payload.components].slice(0, 5) }).catch(() => {})
             await refreshMainPanel(client, interaction, type, firstRow)

@@ -9,7 +9,7 @@
 const { EmbedBuilder, AttachmentBuilder } = require('discord.js');
 const { getChannelConfig, isNotificationEnabled } = require('./settingsSchemaManager');
 const { applyUserThumbnail } = require('./thumbnailProcessor');
-const { resolveMessagePlaceholders } = require('./placeholders');
+const { resolveMessagePlaceholders, toSendPayload } = require('./placeholders');
 const { getLocalizedString } = require('./languageKeys');
 const { generateGoodbyeCard } = require('../../handler/generateGoodbyeCard');
 const { generateRankCard } = require('../generateRankCard');
@@ -87,7 +87,7 @@ async function sendBirthdayNotification(guildId, member, client) {
                 messageData = applyUserThumbnail(messageData, member.user);
             }
             
-            await channel.send(messageData);
+            await channel.send(toSendPayload(messageData));
         } else {
             // Default birthday message
             const embed = new EmbedBuilder()
@@ -167,7 +167,7 @@ async function sendWelcomeNotification(guildId, member, client) {
             // Set content with welcome message
             messageData.content = welcomeContent;
             
-            await channel.send(messageData);
+            await channel.send(toSendPayload(messageData));
             console.log('[Welcome Notification] Custom message sent successfully');
         } else {
             // Default welcome message
@@ -233,7 +233,7 @@ async function sendGoodbyeNotification(guildId, member, memberData, client) {
                 messageData = applyUserThumbnail(messageData, member.user);
             }
             
-            await channel.send(messageData);
+            await channel.send(toSendPayload(messageData));
             console.log('[Goodbye Notification] Custom message sent successfully');
         } else {
             // Get settings for currency emoji

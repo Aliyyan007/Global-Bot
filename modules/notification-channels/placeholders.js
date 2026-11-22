@@ -66,4 +66,23 @@ function resolveMessagePlaceholders(messageData, member, guild, extra = {}) {
     return out
 }
 
-module.exports = { resolvePlaceholders, resolveMessagePlaceholders }
+/**
+ * Convert a stored customMessage ({content, embeds, attachments}) into a
+ * valid channel.send payload — `attachments` is our persisted metadata
+ * (url + name), Discord expects `files`.
+ * @param {Object} messageData
+ * @returns {Object}
+ */
+function toSendPayload(messageData) {
+    if (!messageData || typeof messageData !== 'object') return messageData
+    const { attachments, ...rest } = messageData
+    if (Array.isArray(attachments) && attachments.length) {
+        rest.files = attachments
+            .filter(a => a?.url)
+            .map(a => ({ attachment: a.url, name: a.name }))
+            .slice(0, 10)
+    }
+    return rest
+}
+
+module.exports = { resolvePlaceholders, resolveMessagePlaceholders, toSendPayload }
